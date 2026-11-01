@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# UV
+.uv/
+uv.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.wav
+tmp/
+mic.wav
+numbers.txt
+tts_server.bat
+tts-add.ps1
+add_code.py
+test.py
+
+# Cache
+.cache/
+*.log
+
+# Local config
+.env
+.env.local
