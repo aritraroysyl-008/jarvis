@@ -4,7 +4,7 @@ jarvis.jext - Load tools from .jext (Jarvis Extension) files.
 A .jext file describes a tool in plain text. Jarvis parses it into an
 OpenAI-compatible function schema and registers it so the LLM can call it.
 
-File format (example):
+File format - local Python tool (no Endpoint):
 
     Tool: get_weather
 
@@ -15,7 +15,25 @@ File format (example):
     city: Name of the city.
     unit: Temperature unit, Celsius or Fahrenheit.
 
-Produces:
+File format - HTTP API tool (with Endpoint):
+
+    Tool: get_weather
+
+    Description:
+    Gets current weather information for a city.
+
+    Endpoint:
+    GET https://api.example.com/weather?city={city}&units={unit}
+
+    Parameters:
+    city: Name of the city.
+    unit: Temperature unit, Celsius or Fahrenheit.
+
+When a tool declares an Endpoint, calling it makes an HTTP request instead of
+running a Python function. ``{param}`` placeholders in the URL/body are
+substituted with the argument values passed by the LLM.
+
+Produces (for both):
 
     {
       "type": "function",
@@ -46,13 +64,13 @@ Usage:
     # Load all .jext files from a folder
     tools = load_jext_directory("my_tools")
 
-    # Register them with Jarvis (they need a Python callable to execute)
+    # Register them with Jarvis
     register_jext_tools(tools, jarvis)
 
-Tools loaded from .jext files without a matching Python callable execute a
-default handler that returns a "tool not implemented" message. To give a tool
-real behavior, define a Python function with the same name and register it
-via @tool or jarvis.tools before loading.
+Tools loaded from .jext files without a matching Python callable execute the
+declared Endpoint (if present) or return a "tool not implemented" message.
+To give a tool real local behavior, define a Python function with the same
+name and register it via @tool or jarvis.tools before loading.
 """
 
 from __future__ import annotations
@@ -86,7 +104,7 @@ def _infer_type(param_name: str, desc: str) -> str:
         return "integer"
     if any(k in d for k in ("price", "temp", "temperature", "amount", "rating", "score")):
         return "number"
-    if any(k in d for k in ("is ", "enabled", "active", "on ", "valid", "correct")):
+    if any(k in d for k in ("is ", "enabled", "active", " on ", "valid", "correct")):
         return "boolean"
     return "string"
 
@@ -117,6 +135,55 @@ def _enum_from_desc(desc: str) -> Optional[List[str]]:
     return out if len(out) >= 2 else None
 
 
+def _parse_endpoint(text: str) -> Optional[Dict[str, str]]:
+    """Parse an optional ``Endpoint:`` section.
+
+    Format:
+        METHOD URL
+
+    Returns a dict with ``method`` and ``url`` keys, or None.
+    """
+    match = re.search(
+        r"^\s*Endpoint:\s*\n\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(\S+)\s*$",
+        text,
+        re.MULTILINE | re.IGNORECASE,
+    )
+    if not match:
+        return None
+    return {"method": match.group(1).upper(), "url": match.group(2)}
+
+
+def _parse_headers(text: str) -> Optional[Dict[str, str]]:
+    """Parse an optional ``Headers:`` section (key: value per line)."""
+    match = re.search(
+        r"^\s*Headers:\s*\n(.*?)(?=\n\s*\n|\n\s*[A-Za-z]+:|\Z)",
+        text,
+        re.MULTILINE | re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+    headers: Dict[str, str] = {}
+    for line in match.group(1).splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        k, v = line.split(":", 1)
+        headers[k.strip()] = v.strip()
+    return headers or None
+
+
+def _parse_body(text: str) -> Optional[str]:
+    """Parse an optional ``Body:`` section (raw text, usually JSON)."""
+    match = re.search(
+        r"^\s*Body:\s*\n(.*?)(?=\n\s*\n|\Z)",
+        text,
+        re.MULTILINE | re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+    return match.group(1).strip() or None
+
+
 def parse_jext(text: str) -> Dict[str, Any]:
     """Parse a .jext file's text content into a tool schema dict.
 
@@ -135,13 +202,22 @@ def parse_jext(text: str) -> Dict[str, Any]:
 
     # --- Description ---
     desc_match = re.search(
-        r"^\s*Description:\s*\n(.*?)(?=\n\s*\n|\n\s*Parameters:|\Z)",
+        r"^\s*Description:\s*\n(.*?)(?=\n\s*\n|\n\s*(?:Endpoint|Parameters|Headers|Body):|\Z)",
         text,
         re.MULTILINE | re.IGNORECASE | re.DOTALL,
     )
     description = ""
     if desc_match:
         description = desc_match.group(1).strip()
+
+    # --- Endpoint (optional) ---
+    endpoint = _parse_endpoint(text)
+
+    # --- Headers (optional) ---
+    headers = _parse_headers(text)
+
+    # --- Body (optional) ---
+    body = _parse_body(text)
 
     # --- Parameters ---
     params_section = ""
@@ -193,6 +269,14 @@ def parse_jext(text: str) -> Dict[str, Any]:
     if required:
         schema["parameters"]["required"] = sorted(set(required))
 
+    # Attach HTTP endpoint info when present
+    if endpoint:
+        schema["endpoint"] = endpoint
+    if headers:
+        schema["headers"] = headers
+    if body:
+        schema["body"] = body
+
     return schema
 
 
@@ -237,10 +321,76 @@ def _default_handler(name: str) -> Callable[..., str]:
         return json.dumps(
             {
                 "error": f"Tool '{name}' is declared but not implemented.",
-                "hint": "Define a Python function named '{name}' and register it with @tool or jarvis.tools.",
+                "hint": "Define a Python function named '{name}' or add an Endpoint to the .jext file.",
                 "received_args": kwargs,
             }
         )
+
+    return handler
+
+
+def _make_http_handler(schema: Dict[str, Any]) -> Callable[..., str]:
+    """Return a handler that makes an HTTP request when the tool is called.
+
+    ``{param}`` placeholders in the endpoint URL and body are substituted
+    with the argument values passed by the LLM.
+    """
+
+    def handler(**kwargs) -> str:
+        import urllib.request
+        import urllib.parse
+
+        endpoint = schema.get("endpoint", {})
+        method = endpoint.get("method", "GET")
+        url_template = endpoint.get("url", "")
+        headers = dict(schema.get("headers", {}))
+        body_template = schema.get("body")
+
+        # Substitute {param} placeholders in URL
+        url = url_template
+        for key, value in kwargs.items():
+            url = url.replace("{" + key + "}", str(value))
+
+        # Append remaining kwargs as query string for GET requests
+        if method == "GET" and kwargs:
+            used_keys = set()
+            for key in kwargs:
+                if "{" + key + "}" in url_template:
+                    used_keys.add(key)
+            unused = {k: v for k, v in kwargs.items() if k not in used_keys}
+            if unused:
+                sep = "&" if "?" in url else "?"
+                url = url + sep + urllib.parse.urlencode(unused)
+
+        # Substitute {param} placeholders in body
+        body = None
+        if body_template is not None:
+            body = body_template
+            for key, value in kwargs.items():
+                body = body.replace("{" + key + "}", str(value))
+            if "Content-Type" not in {k.lower() for k in headers}:
+                headers["Content-Type"] = "application/json"
+
+        data = body.encode("utf-8") if body is not None else None
+
+        req = urllib.request.Request(
+            url=url,
+            data=data,
+            headers=headers,
+            method=method,
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                status = resp.status
+                resp_body = resp.read().decode("utf-8", errors="replace")
+                result = {
+                    "status": status,
+                    "body": resp_body,
+                }
+                return json.dumps(result)
+        except Exception as exc:  # pragma: no cover - network
+            return json.dumps({"error": str(exc)})
 
     return handler
 
@@ -282,17 +432,20 @@ def register_jext_tools(
             registered.append(name)
             continue
 
-        # Build a callable that uses the default handler
-        def _jext_handler(**kwargs):
-            return _default_handler(name)(**kwargs)
+        # If the schema declares an Endpoint, use the HTTP handler
+        if "endpoint" in schema:
+            handler = _make_http_handler(schema)
+        else:
+            # Default "not implemented" handler
+            handler = _default_handler(name)
 
-        _jext_handler.__name__ = name
-        _jext_handler.__qualname__ = name
+        handler.__name__ = name
+        handler.__qualname__ = name
         tool_decorator(
             description=description,
             properties=parameters.get("properties", {}),
             required=parameters.get("required", []),
-        )(_jext_handler)
+        )(handler)
 
         # Store the raw schema so the LLM sees the .jext definition
         TOOLS[name]["schema"] = {

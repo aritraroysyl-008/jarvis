@@ -1,0 +1,11 @@
+Tool: get_weather
+
+Description:
+Gets current weather information for a city from a public API.
+
+Endpoint:
+GET https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m&timezone=auto
+
+Parameters:
+lat: Latitude of the location.
+lon: Longitude of the location.

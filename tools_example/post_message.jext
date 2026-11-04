@@ -1,0 +1,17 @@
+Tool: post_message
+
+Description:
+Send a message to a webhook endpoint.
+
+Endpoint:
+POST https://hooks.example.com/messages
+
+Headers:
+Content-Type: application/json
+
+Body:
+{"text": "{text}", "channel": "{channel}"}
+
+Parameters:
+text: The message text to send.
+channel: The channel to post to.
