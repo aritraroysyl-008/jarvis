@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # PocketTTS Voice Registration (Linux / macOS)
-# Converts an MP3 to 24 kHz mono WAV and registers it with the PocketTTS server.
+# Registers a voice with ServeurpersoCom/pockettts.cpp tts-server
+# (https://github.com/ServeurpersoCom/pockettts.cpp)
+# Converts an MP3 to 24 kHz mono WAV and registers it with the tts-server voice registry.
 
 set -euo pipefail
 

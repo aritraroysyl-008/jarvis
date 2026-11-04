@@ -11,7 +11,7 @@ Built as an installable Python package (`jarvis/`), it runs entirely on your mac
 - **Tool calling (function calling)** — LLM can call registered tools and speak the results
 - **Streaming LLM + TTS** — audio starts playing while the LLM is still streaming tokens
 - **Echo cancellation** — optional SpeexDSP AEC so the mic doesn't hear its own output
-- **PocketTTS.cpp TTS server** — CPU-only, zero-shot voice-cloning TTS via OpenAI-compatible HTTP API ([VolgaGerm/PocketTTS.cpp](https://github.com/VolgaGerm/PocketTTS.cpp))
+- **PocketTTS.cpp TTS server** — GGML-based, zero-shot voice-cloning TTS via OpenAI-compatible HTTP API ([ServeurpersoCom/pockettts.cpp](https://github.com/ServeurpersoCom/pockettts.cpp))
 - **Silero VAD** — voice activity detection for utterance segmentation
 - **Whisper transcription** — local speech-to-text
 - **Modular, extensible** — clean separation of config, core, pipeline, audio, and tools
@@ -73,44 +73,37 @@ pip install -e .
 
 ### 3. Set up the TTS server (PocketTTS.cpp)
 
-Jarvis speaks through a PocketTTS.cpp HTTP server at `http://127.0.0.1:8080/v1/audio/speech`.
+Jarvis speaks through a PocketTTS.cpp `tts-server` at `http://127.0.0.1:8080/v1/audio/speech` — an OpenAI-compatible HTTP server with a voice directory and runtime voice registry.
 
-Build and run PocketTTS.cpp ([source](https://github.com/VolgaGerm/PocketTTS.cpp)):
+Build and run PocketTTS.cpp ([source](https://github.com/ServeurpersoCom/pockettts.cpp)):
 
 ```bash
-# Clone PocketTTS.cpp
-git clone https://github.com/VolgaGerm/PocketTTS.cpp.git
-cd PocketTTS.cpp
+# Clone PocketTTS.cpp (with submodules)
+git clone --recurse-submodules https://github.com/ServeurpersoCom/pockettts.cpp.git
+cd pockettts.cpp
 
-# Export ONNX models (requires uv + torch)
-uv venv .venv --python 3.12
-source .venv/bin/activate
-uv pip install torch --index-url https://download.pytorch.org/whl/cpu
-uv pip install "pocket-tts @ git+https://github.com/kyutai-labs/pocket-tts.git"
-uv pip install onnx onnxruntime
-python export_onnx.py
+# Build (choose one backend)
+./buildcpu.sh                  # CPU only
+# ./buildcuda.sh               # NVIDIA GPU
+# ./buildvulkan.sh             # AMD/Intel GPU (Vulkan)
+# ./buildall.sh                # all backends, runtime DL loading
 
-# Build the C++ server (CMake 3.28+, C++17)
-cmake -B .build -DCMAKE_BUILD_TYPE=Release
-cmake --build .build -j$(nproc)
+# Download pre-converted GGUF models (English + French, Q8_0, with voices)
+./models.sh
 
-# Place a voice sample (WAV/MP3/FLAC) in voices/
-cp your_voice.wav voices/alba.wav
-
-# Start the HTTP server (OpenAI-compatible, port 8080)
-./build/pocket-tts --server --port 8080 --voice alba.wav
+# Start the OpenAI-compatible TTS server (port 8080)
+./tts-server --port 8080
 ```
 
 The server exposes:
 - `POST /v1/audio/speech` — OpenAI-compatible TTS (what Jarvis calls)
-- `POST /tts` — streaming TTS
-- `GET /health` — health check
+- Runtime voice registry — register predefined or cloned voices at startup
 
-Jarvis's `TTS_VOICE` in `jarvis/config/settings.py` should match your voice filename (default: `"alba"`).
+Jarvis's `TTS_VOICE` in `jarvis/config/settings.py` should match a registered voice name (default: `"alba"`).
 
 ### 4. Register a custom voice (optional)
 
-Use `register_voice.bat` (Windows) or `register_voice.sh` (Linux/macOS) to convert an MP3 to 24 kHz mono WAV and upload it to the PocketTTS server for voice cloning:
+Use `register_voice.bat` (Windows) or `register_voice.sh` (Linux/macOS) to convert an MP3 to 24 kHz mono WAV and register it with the PocketTTS `tts-server` voice registry:
 
 ```bash
 # Windows
@@ -121,7 +114,7 @@ chmod +x register_voice.sh
 ./register_voice.sh
 ```
 
-It will prompt for the MP3 path and a voice name, then POST to `http://127.0.0.1:8080/v1/audio/voices`. Set `TTS_VOICE` in `jarvis/config/settings.py` to the name you chose.
+It will prompt for the MP3 path and a voice name, then register it with the `tts-server` runtime voice registry. Set `TTS_VOICE` in `jarvis/config/settings.py` to the name you chose.
 
 ### 5. Set up the LLM server
 
@@ -154,7 +147,7 @@ All settings live in `jarvis/config/settings.py`:
 | Setting | Default | Description |
 |---|---|---|
 | `TTS_URL` | `http://127.0.0.1:8080/v1/audio/speech` | PocketTTS.cpp OpenAI-compatible endpoint |
-| `TTS_VOICE` | `"alba"` | Voice sample filename in PocketTTS `voices/` |
+| `TTS_VOICE` | `"alba"` | Registered voice name in PocketTTS `tts-server` voice registry |
 | `LLM_BASE_URL` | `http://127.0.0.1:1337/v1` | OpenAI-compatible LLM server |
 | `LLM_MODEL` | `"no_func.gguf"` | Fallback model name |
 | `TTS_SAMPLE_RATE` | `24000` | TTS audio sample rate (Hz) |
@@ -203,4 +196,4 @@ MIT
 
 ---
 
-TTS powered by [PocketTTS.cpp](https://github.com/VolgaGerm/PocketTTS.cpp) — the fastest open-source CPU TTS engine with voice cloning.
+TTS powered by [PocketTTS.cpp](https://github.com/ServeurpersoCom/pockettts.cpp) — GGML-based local AI TTS with voice cloning, CPU/CUDA/Metal/Vulkan support.

@@ -6,6 +6,9 @@ echo ========================================
 echo       PocketTTS Voice Registration
 echo ========================================
 echo.
+echo Register a voice with ServeurpersoCom/pockettts.cpp tts-server
+echo (https://github.com/ServeurpersoCom/pockettts.cpp)
+echo.
 
 set /p "MP3_PATH=Enter MP3 file path: "
 set /p "VOICE_NAME=Enter voice name: "
