@@ -75,6 +75,15 @@ def test_run_python_captures_stderr():
     assert "ValueError" in result or "boom" in result or "Error" in result
 
 
+def test_set_reminder_stores_and_lists():
+    from jarvis.tools.builtin import _REMINDERS
+    _REMINDERS.clear()
+    result = execute_tool("set_reminder", '{"message": "Call mom", "when": "today at 5pm"}')
+    assert "Call mom" in result
+    result = execute_tool("list_reminders", "{}")
+    assert "Call mom" in result
+
+
 def test_execute_unknown_tool_returns_error():
     result = execute_tool("nonexistent_tool", "{}")
     assert "error" in result.lower()

@@ -86,6 +86,37 @@ def calculate(expression: str) -> str:
 #     return f"Turned {action} the {device}"
 
 
+# In-memory reminder store (simple list; persists for the lifetime of the process)
+_REMINDERS: list[dict] = []
+
+
+@tool(
+    "Set a reminder for a future time.",
+    {
+        "message": {"type": "string", "description": "What to remind about."},
+        "when": {"type": "string", "description": "When to remind (e.g. 'in 10 minutes', 'today at 5pm')."},
+    },
+    ["message", "when"],
+)
+def set_reminder(message: str, when: str) -> str:
+    """Store a reminder and return a confirmation."""
+    _REMINDERS.append({"message": message, "when": when})
+    return f"Reminder set: '{message}' at {when} ({len(_REMINDERS)} total reminders)."
+
+
+@tool(
+    "List all active reminders.",
+    {},
+    [],
+)
+def list_reminders() -> str:
+    """Return all stored reminders."""
+    if not _REMINDERS:
+        return "No reminders set."
+    lines = [f"{i+1}. {r['message']} at {r['when']}" for i, r in enumerate(_REMINDERS)]
+    return "Reminders:\n" + "\n".join(lines)
+
+
 @tool(
     "Write and execute Python code to perform calculations or other tasks.",
     {
