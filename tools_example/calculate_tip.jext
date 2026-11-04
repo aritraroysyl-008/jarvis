@@ -1,0 +1,8 @@
+Tool: calculate_tip
+
+Description:
+Calculate the tip and total for a restaurant bill.
+
+Parameters:
+bill: The bill amount in dollars.
+tip_percent: Tip percentage to apply (default 20).

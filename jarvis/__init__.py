@@ -17,6 +17,14 @@ Usage:
 
 from jarvis.app import JARVIS
 from jarvis.apps import App, Components, register_app, get_app, list_apps, apps, WebApp
+from jarvis.jext import (
+    parse_jext,
+    parse_jext_file,
+    load_jext_file,
+    load_jext_directory,
+    register_jext_tools,
+    register_jext_directory,
+)
 from jarvis.tools.registry import get_tool_schemas, tool, execute_tool, list_tools, TOOLS
 
 # MCP server endpoint configuration
@@ -41,6 +49,12 @@ __all__ = [
     "list_apps",
     "apps",
     "WebApp",
+    "parse_jext",
+    "parse_jext_file",
+    "load_jext_file",
+    "load_jext_directory",
+    "register_jext_tools",
+    "register_jext_directory",
     "tools",
     "mcp",
     "tool",

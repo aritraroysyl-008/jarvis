@@ -9,6 +9,7 @@ Run:
 
 from jarvis import JARVIS, tools, mcp
 from jarvis.apps import App, Components, register_app, WebApp
+from jarvis.jext import load_jext_directory, register_jext_tools
 from jarvis.tools.registry import tool, list_tools
 
 
@@ -71,7 +72,18 @@ class GreetingApp(App):
 
 
 # ---------------------------------------------------------------------------
-# 3. Inspect what's registered
+# 3. Load tools from .jext files (no Python code needed for the schema)
+# ---------------------------------------------------------------------------
+# These define the tool schema for the LLM. Tools without a matching Python
+# callable get a default "not implemented" handler. Tools that DO have a
+# Python implementation (like get_weather above) are left untouched.
+
+jext_schemas = load_jext_directory("tools_example")
+print("Loaded .jext tools:", [s["name"] for s in jext_schemas])
+
+
+# ---------------------------------------------------------------------------
+# 4. Inspect what's registered
 # ---------------------------------------------------------------------------
 
 print("MCP endpoints:", mcp)
@@ -81,7 +93,7 @@ print("Components: speak, transcribe, llm, tools, play, history, clear_history")
 
 
 # ---------------------------------------------------------------------------
-# 4. (Optional) Expose Jarvis as a web app
+# 5. (Optional) Expose Jarvis as a web app
 # ---------------------------------------------------------------------------
 # Uncomment to run a FastAPI web server on port 8000:
 #   pip install fastapi uvicorn
@@ -96,6 +108,9 @@ if __name__ == "__main__":
     import sys
 
     jarvis = JARVIS()
+
+    # Register .jext tools with the jarvis instance (wires up components)
+    register_jext_tools(jext_schemas, jarvis)
 
     # Register the custom app with the jarvis instance so components are wired up
     register_app(GreetingApp(), jarvis)

@@ -1,0 +1,8 @@
+Tool: set_reminder
+
+Description:
+Set a reminder for a future time.
+
+Parameters:
+message: What to remind about.
+when: When to remind (e.g. "in 10 minutes", "tomorrow at 9am").
