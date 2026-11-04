@@ -16,6 +16,7 @@ Usage:
 """
 
 from jarvis.app import JARVIS
+from jarvis.apps import App, register_app, get_app, list_apps, apps, WebApp
 from jarvis.tools.registry import get_tool_schemas, tool, execute_tool, list_tools, TOOLS
 
 # MCP server endpoint configuration
@@ -33,6 +34,12 @@ __author__ = "Jarvis Team"
 
 __all__ = [
     "JARVIS",
+    "App",
+    "register_app",
+    "get_app",
+    "list_apps",
+    "apps",
+    "WebApp",
     "tools",
     "mcp",
     "tool",
