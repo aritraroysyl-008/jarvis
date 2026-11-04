@@ -7,6 +7,10 @@ new modules and importing them in tools/__init__.py
 
 import ast
 import operator
+import subprocess
+import sys
+import tempfile
+import os
 from datetime import datetime
 
 from jarvis.tools.registry import tool
@@ -80,3 +84,53 @@ def calculate(expression: str) -> str:
 # def smart_home(device: str, action: str) -> str:
 #     # Your implementation here
 #     return f"Turned {action} the {device}"
+
+
+@tool(
+    "Write and execute Python code to perform calculations or other tasks.",
+    {
+        "code": {"type": "string", "description": "Python source code to execute."},
+    },
+    ["code"],
+)
+def run_python(code: str) -> str:
+    """Write Python code to a temp file and execute it, capturing stdout.
+
+    WARNING: This runs arbitrary Python code on the local machine. Only use
+    with trusted input.
+
+    Args:
+        code: Python source code to run.
+
+    Returns:
+        stdout output from the script, or an error message if execution failed.
+    """
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".py", delete=False, encoding="utf-8"
+    )
+    try:
+        tmp.write(code)
+        tmp.flush()
+        tmp.close()
+
+        result = subprocess.run(
+            [sys.executable, tmp.name],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        output = result.stdout
+        if result.stderr:
+            output += "\nSTDERR:\n" + result.stderr
+        if result.returncode != 0:
+            output += f"\nExit code: {result.returncode}"
+        return output or "(no output)"
+    except subprocess.TimeoutExpired:
+        return "Error: Python script timed out after 30 seconds."
+    except Exception as exc:  # pragma: no cover - runtime
+        return f"Error: {exc}"
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass

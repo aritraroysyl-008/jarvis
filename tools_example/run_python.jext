@@ -1,0 +1,7 @@
+Tool: run_python
+
+Description:
+Write and execute Python code to perform calculations or other tasks. Use this for math, data processing, file operations, or any computation that can be expressed in Python.
+
+Parameters:
+code: Python source code to execute.

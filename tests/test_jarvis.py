@@ -65,6 +65,16 @@ def test_calculate_handles_errors():
     assert result == "4"
 
 
+def test_run_python_executes_code():
+    result = execute_tool("run_python", '{"code": "print(2 + 2)"}')
+    assert "4" in result
+
+
+def test_run_python_captures_stderr():
+    result = execute_tool("run_python", '{"code": "raise ValueError(\"boom\")"}')
+    assert "ValueError" in result or "boom" in result or "Error" in result
+
+
 def test_execute_unknown_tool_returns_error():
     result = execute_tool("nonexistent_tool", "{}")
     assert "error" in result.lower()
