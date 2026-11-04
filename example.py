@@ -31,12 +31,6 @@ def calculate_tip(bill: float, tip_percent: float = 20.0) -> str:
     return f"Tip: ${tip:.2f}  Total: ${total:.2f}"
 
 
-@tool("Search the web for a query.")
-def web_search(query: str) -> str:
-    """Placeholder web search tool."""
-    return f"Search results for '{query}' (placeholder)."
-
-
 @tool(
     "Write and execute Python code to perform calculations or other tasks.",
     {"code": {"type": "string", "description": "Python source code to execute."}},
