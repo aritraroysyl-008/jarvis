@@ -84,6 +84,10 @@ def test_set_reminder_stores_and_lists():
     assert "Call mom" in result
 
 
+def test_web_search_tool_registered():
+    assert "web_search" in list_tools()
+
+
 def test_execute_unknown_tool_returns_error():
     result = execute_tool("nonexistent_tool", "{}")
     assert "error" in result.lower()
