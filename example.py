@@ -1,17 +1,21 @@
 """
 example.py
 
-How to extend Jarvis with your own tools and run it as a package.
+How to extend Jarvis with custom tools, apps, triggers, and multi-agent mode.
 
 Run:
     python example.py
+    python example.py --web
+    python example.py --mic-device 1 --output-device 2
+    python example.py --no-history
 """
 
+import sys
+
 from jarvis import JARVIS, tools, mcp
-from jarvis.apps import App, register_app, WebApp
+from jarvis.apps import App, register_app, WebApp, Agent, AgentRegistry
 from jarvis.jext import load_jext_directory, register_jext_tools
-from jarvis.triggers import TriggerManager
-from jarvis.tools.registry import tool, list_tools
+from jarvis.tools.registry import tool, list_tools, set_tool_cache_ttl
 
 
 # ---------------------------------------------------------------------------
@@ -37,10 +41,7 @@ def calculate_tip(bill: float, tip_percent: float = 20.0) -> str:
 # ---------------------------------------------------------------------------
 
 class GreetingApp(App):
-    """Example custom app: responds to greetings with a friendly message.
-
-    Demonstrates using components (speak, llm, tools) inside on_text.
-    """
+    """Example custom app: responds to greetings using components."""
 
     name = "greeting"
 
@@ -52,65 +53,70 @@ class GreetingApp(App):
             return "Hello there! How can I help you today?"
         if "bye" in lower or "goodbye" in lower:
             return "Goodbye! Have a great day."
-
-        # Example: call a tool through components
         if "weather" in lower:
             result = self.components.tools("get_weather", '{"city": "New York"}')
             return f"Weather: {result}"
-
-        # Example: ask the LLM through components
         reply = self.components.llm(text)
         return reply
 
 
-# register_app now needs the jarvis instance (called in __main__ below)
-
-
 # ---------------------------------------------------------------------------
-# 3. Load tools from .jext files (no Python code needed for the schema)
+# 3. Load tools from .jext files (includes triggers)
 # ---------------------------------------------------------------------------
-# These define the tool schema for the LLM. Tools without a matching Python
-# callable get a default "not implemented" handler. Tools that DO have a
-# Python implementation (like get_weather above) are left untouched.
 
 jext_schemas = load_jext_directory("tools_example")
 print("Loaded .jext tools:", [s["name"] for s in jext_schemas])
 
-
 # ---------------------------------------------------------------------------
-# 4. Inspect what's registered
+# 4. Configure tool cache (TTL in seconds)
 # ---------------------------------------------------------------------------
 
-print("MCP endpoints:", mcp)
-print("Registered tools:", list_tools())
-print("Tool schemas count:", len(tools))
-print("Components: speak, transcribe, llm, tools, play, history, clear_history")
+set_tool_cache_ttl(300)  # Cache tool results for 5 minutes
 
 
 # ---------------------------------------------------------------------------
-# 5. (Optional) Expose Jarvis as a web app
+# 6. Run
 # ---------------------------------------------------------------------------
-# Uncomment to run a FastAPI web server on port 8000:
-#   pip install fastapi uvicorn
-#   python example.py --web
-#
-# jarvis = JARVIS()
-# web = WebApp(jarvis)
-# web.run(port=8000)
-
 
 if __name__ == "__main__":
-    import sys
+    # Parse CLI args
+    mic_device = None
+    output_device = None
+    history_file = "conversation_history.json"
 
-    jarvis = JARVIS()
+    args = sys.argv[1:]
+    if "--mic-device" in args:
+        idx = args.index("--mic-device")
+        mic_device = int(args[idx + 1])
+    if "--output-device" in args:
+        idx = args.index("--output-device")
+        output_device = int(args[idx + 1])
+    if "--no-history" in args:
+        history_file = None
 
-    # Register .jext tools with the jarvis instance (wires up components + triggers)
+    # Set device settings globally (imported from settings module)
+    from jarvis.config.settings import MIC_DEVICE, OUTPUT_DEVICE
+    MIC_DEVICE = mic_device
+    OUTPUT_DEVICE = output_device
+
+    jarvis = JARVIS(history_file=history_file)
+
+    # Register .jext tools with trigger manager
     register_jext_tools(jext_schemas, jarvis, trigger_manager=jarvis.trigger_manager)
 
-    # Register the custom app with the jarvis instance so components are wired up
+    # Register custom app
     register_app(GreetingApp(), jarvis)
 
-    if "--web" in sys.argv:
+    # Set up multi-agent registry
+    registry = AgentRegistry(jarvis)
+    registry.register(Agent("assistant", "You are a helpful voice assistant.", jarvis))
+    registry.register(Agent("coder", "You are an expert programmer. Keep code examples short and explain clearly.", jarvis))
+    registry.register(Agent("poet", "You are a poetic voice assistant. Respond in short verses.", jarvis))
+
+    print("Multi-agent registry:", registry.list_agents())
+    print("Current agent:", registry.current_agent())
+
+    if "--web" in args:
         try:
             web = WebApp(jarvis)
             print("Starting web app at http://127.0.0.1:8000")

@@ -7,12 +7,19 @@ with OpenAI function-calling schema.
 
 import json
 import inspect
+import os
+import threading
+import time
 from typing import Callable, Any, Dict, Optional, List
 from functools import wraps
 
 
 # Global tool registry
 TOOLS: Dict[str, Dict] = {}
+
+# Tool result cache: {(name, args_json): (result, expiry_time)}
+_TOOL_CACHE: Dict[tuple, tuple] = {}
+_TOOL_CACHE_TTL = 300  # seconds
 
 
 def tool(

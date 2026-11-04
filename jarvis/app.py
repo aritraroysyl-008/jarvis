@@ -13,12 +13,16 @@ Example:
 import queue
 import re
 import threading
+import time
 
 from jarvis.config.settings import (
     LLM_MODELS_URL,
     LLM_MODEL,
     USE_AEC,
     AEC_FILTER_LEN,
+    MIC_DEVICE,
+    OUTPUT_DEVICE,
+    validate_config,
 )
 from jarvis.core import Turn, Player, EchoCanceller, Session
 from jarvis.pipeline import run_turn
@@ -48,7 +52,7 @@ class JARVIS:
     ]
     STOP_REGEX = re.compile("|".join(STOP_WORDS), re.IGNORECASE)
 
-    def __init__(self):
+    def __init__(self, history_file: Optional[str] = None):
         self.session = Session()
         self.player = None
         self.echo = None
@@ -58,6 +62,10 @@ class JARVIS:
         self.utterance_queue = queue.Queue()
         self.running = False
         self.trigger_manager = TriggerManager()
+        self.history_file = history_file
+        # Load conversation history if file exists
+        if history_file:
+            self.session.load_history(history_file)
 
     # Lifecycle
 
@@ -78,6 +86,15 @@ class JARVIS:
             VAD_FRAME_SIZE,
         )
 
+        # Validate config before starting
+        errors = validate_config()
+        if errors:
+            print("Configuration errors:")
+            for e in errors:
+                print(f"  - {e}")
+            print("Please fix these before starting Jarvis.")
+            return
+
         # Create echo canceller before player
         self.echo = EchoCanceller(
             frame_size=512,
@@ -86,7 +103,7 @@ class JARVIS:
             enabled=USE_AEC,
         )
 
-        self.player = Player(echo_canceller=self.echo)
+        self.player = Player(echo_canceller=self.echo, device=OUTPUT_DEVICE)
         self.vad_model = create_vad_model()
         self.stop_event = threading.Event()
         self.utterance_queue = queue.Queue()
@@ -107,7 +124,7 @@ class JARVIS:
         print("Jarvis")
         print("Listening (full duplex). Talk any time. Ctrl+C to quit.\n")
 
-        with self.player, create_input_stream(self.echo):
+        with self.player, create_input_stream(self.echo, device=MIC_DEVICE):
             self.vad_thread.start()
             try:
                 while self.running:
@@ -145,6 +162,7 @@ class JARVIS:
                     turn.thread = threading.Thread(
                         target=run_turn,
                         args=(turn, list(self.session.history), self.player),
+                        kwargs={"speak_fn": self.speak},
                         daemon=True,
                     )
                     print("Assistant: ", end="", flush=True)
@@ -168,6 +186,34 @@ class JARVIS:
             self.session.cancel_current()
         if self.vad_thread and self.vad_thread.is_alive():
             self.vad_thread.join(timeout=2)
+        # Save conversation history
+        if self.history_file:
+            self.session.save_history(self.history_file)
+
+    def speak(self, text: str) -> None:
+        """Speak text through the TTS pipeline (used for auto-speak tool results)."""
+        import threading
+        from jarvis.pipeline.tts import speak as _speak
+        from jarvis.core.turn import Turn
+
+        turn = Turn()
+        tts_q: queue.Queue = queue.Queue()
+        tts_pending = threading.Event()
+
+        tts_thread = threading.Thread(
+            target=self._tts_worker,
+            args=(turn, tts_q, self.player, tts_pending),
+            daemon=True,
+        )
+        tts_thread.start()
+        tts_q.put(text)
+        tts_pending.set()
+        tts_thread.join(timeout=60)
+
+    @staticmethod
+    def _tts_worker(turn, tts_q, player, tts_pending):
+        from jarvis.pipeline.tts import tts_worker
+        tts_worker(turn, tts_q, player, tts_pending)
 
     # Helpers
 

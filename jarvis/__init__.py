@@ -16,7 +16,7 @@ Usage:
 """
 
 from jarvis.app import JARVIS
-from jarvis.apps import App, Components, register_app, get_app, list_apps, apps, WebApp
+from jarvis.apps import App, Components, Agent, AgentRegistry, register_app, get_app, list_apps, apps, WebApp
 from jarvis.jext import (
     parse_jext,
     parse_jext_file,
@@ -45,6 +45,8 @@ __all__ = [
     "JARVIS",
     "App",
     "Components",
+    "Agent",
+    "AgentRegistry",
     "TriggerManager",
     "register_app",
     "get_app",

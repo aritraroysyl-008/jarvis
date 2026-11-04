@@ -5,6 +5,8 @@ Centralized configuration for all modules.
 Modify these values to customize behavior without touching code.
 """
 
+from typing import Optional, List
+
 # Torch is imported lazily on first access to avoid a slow / hard-failing
 # module-level import for consumers that don't need it.
 _torch = None
@@ -89,7 +91,51 @@ HALLUCINATIONS = {
     "you", "thank you", "thanks for watching", "bye", "uh", "um", "hmm"
 }
 
-# DEVICE DETECTION (lazy - torch only loads when first accessed)
+# DEVICE SELECTION (set via CLI flag or settings)
+MIC_DEVICE: Optional[int] = None      # Microphone input device index
+OUTPUT_DEVICE: Optional[int] = None   # Audio output device index
+
+
+# CONFIG VALIDATION
+
+import urllib.request
+import urllib.error
+
+
+def validate_config() -> List[str]:
+    """Check that TTS and LLM servers are reachable.
+
+    Returns a list of error messages (empty if all OK).
+    """
+    errors = []
+
+    # Check TTS server
+    try:
+        req = urllib.request.Request(
+            TTS_URL,
+            method="OPTIONS",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status not in (200, 204, 405):
+                errors.append(f"TTS server at {TTS_URL} returned status {resp.status}")
+    except urllib.error.URLError as e:
+        errors.append(f"Cannot reach TTS server at {TTS_URL}: {e}")
+    except Exception as e:
+        errors.append(f"TTS server check failed: {e}")
+
+    # Check LLM server
+    try:
+        req = urllib.request.Request(LLM_MODELS_URL, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status not in (200,):
+                errors.append(f"LLM server at {LLM_MODELS_URL} returned status {resp.status}")
+    except urllib.error.URLError as e:
+        errors.append(f"Cannot reach LLM server at {LLM_MODELS_URL}: {e}")
+    except Exception as e:
+        errors.append(f"LLM server check failed: {e}")
+
+    return errors
 
 def _init_device():
     torch = _get_torch()

@@ -9,6 +9,8 @@ import queue
 import numpy as np
 import sounddevice as sd
 
+from typing import Optional
+
 from jarvis.config.settings import MIC_SAMPLE_RATE, VAD_FRAME_SIZE, MIC_QUEUE_SIZE
 from jarvis.core.echo_canceller import EchoCanceller
 

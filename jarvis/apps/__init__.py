@@ -382,9 +382,77 @@ class WebApp:
         import uvicorn
         uvicorn.run(self.app, host=host, port=port)
 
+# ---------------------------------------------------------------------------
+# Multi-Agent Mode
+# ---------------------------------------------------------------------------
+
+class Agent:
+    """A named agent with its own system prompt and JARVIS instance.
+
+    Agents can be switched at runtime. Each agent has its own conversation
+    history (system prompt) but shares the same underlying audio pipeline.
+
+    Usage:
+        agent_a = Agent("assistant", "You are a helpful assistant.")
+        agent_b = Agent("coder", "You are an expert programmer.")
+        registry = AgentRegistry()
+        registry.register(agent_a)
+        registry.register(agent_b)
+        registry.switch_to("coder")
+    """
+
+    def __init__(self, name: str, system_prompt: str, jarvis: "JARVIS"):
+        self.name = name
+        self.system_prompt = system_prompt
+        self.jarvis = jarvis
+
+    def activate(self) -> None:
+        """Apply this agent's system prompt to the shared JARVIS session."""
+        from jarvis.config.settings import SYSTEM_PROMPT
+        self.jarvis.session.history[0] = {"role": "system", "content": self.system_prompt}
+        print(f"[agent] Switched to '{self.name}'")
+
+
+class AgentRegistry:
+    """Manage multiple agents and switching between them."""
+
+    def __init__(self, jarvis: "JARVIS"):
+        self.jarvis = jarvis
+        self.agents: Dict[str, Agent] = {}
+        self.current: Optional[Agent] = None
+
+    def register(self, agent: Agent) -> None:
+        """Register an agent."""
+        self.agents[agent.name] = agent
+        if self.current is None:
+            self.current = agent
+            agent.activate()
+        print(f"[agent] Registered '{agent.name}'")
+
+    def switch_to(self, name: str) -> bool:
+        """Switch to the named agent. Returns True if found."""
+        agent = self.agents.get(name)
+        if agent is None:
+            print(f"[agent] Unknown agent: {name}")
+            return False
+        self.current = agent
+        agent.activate()
+        return True
+
+    def list_agents(self) -> List[str]:
+        """Return names of all registered agents."""
+        return list(self.agents.keys())
+
+    def current_agent(self) -> Optional[str]:
+        """Return the name of the current agent."""
+        return self.current.name if self.current else None
+
+
 __all__ = [
     "App",
     "Components",
+    "Agent",
+    "AgentRegistry",
     "register_app",
     "get_app",
     "list_apps",

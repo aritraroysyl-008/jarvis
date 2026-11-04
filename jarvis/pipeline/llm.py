@@ -244,7 +244,7 @@ def stream_llm(turn: Turn, messages: list, tts_q: queue.Queue) -> tuple[str, lis
     return "".join(full), tool_calls
 
 
-def run_llm_with_tools(turn: Turn, messages: list, tts_q: queue.Queue, max_rounds: int = 4) -> str:
+def run_llm_with_tools(turn: Turn, messages: list, tts_q: queue.Queue, max_rounds: int = 4, speak_fn: Optional[Callable[[str], None]] = None) -> str:
     """
     Run LLM with tool calling loop.
 
@@ -288,7 +288,7 @@ def run_llm_with_tools(turn: Turn, messages: list, tts_q: queue.Queue, max_round
             if turn.cancel.is_set():
                 return ""
             print(f"\n[tool] {c['name']}({c['arguments']})", flush=True)
-            out = execute_tool(c["name"], c["arguments"])
+            out = execute_tool(c["name"], c["arguments"], speak_fn=speak_fn)
             print(f"[tool] -> {out}", flush=True)
             results.append({"role": "tool", "tool_call_id": c["id"], "content": out})
 

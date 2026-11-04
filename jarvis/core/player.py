@@ -8,6 +8,7 @@ Uses a jitter buffer to prevent gaps at chunk boundaries.
 import threading
 import time
 from collections import deque
+from typing import Optional
 
 import sounddevice as sd
 
@@ -30,7 +31,7 @@ class Player:
         - Echo canceller reference signal feed
     """
 
-    def __init__(self, echo_canceller=None):
+    def __init__(self, echo_canceller=None, device: Optional[int] = None):
         self.echo = echo_canceller
         self.q = deque()              # Items: [turn, sentence_text, pcm_bytes, is_last_chunk]
         self.lock = threading.Lock()
@@ -45,6 +46,7 @@ class Player:
             dtype="int16",
             blocksize=OUTPUT_BLOCK_SIZE,
             latency="low",
+            device=device,
             callback=self._callback,
         )
 

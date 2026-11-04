@@ -4,7 +4,9 @@ Jarvis Voice Assistant - Core: Session Management
 Manages conversation history, turn lifecycle, and history trimming.
 """
 
+import json
 import threading
+from pathlib import Path
 
 from jarvis.config.settings import SYSTEM_PROMPT, MAX_HISTORY
 from jarvis.core.turn import Turn
@@ -79,6 +81,24 @@ class Session:
             t = self.turn
             if t is not None and t.finished.is_set() and not t.committed:
                 self.commit(t)
+
+    def save_history(self, path: str | Path) -> None:
+        """Save conversation history to a JSON file."""
+        with self._lock:
+            history_copy = list(self.history)
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(history_copy, indent=2, ensure_ascii=False))
+
+    def load_history(self, path: str | Path) -> None:
+        """Load conversation history from a JSON file."""
+        path = Path(path)
+        if not path.exists():
+            return
+        with self._lock:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, list) and data:
+                self.history = data
 
     def cancel_current(self, player=None):
         """Cancel the current turn (barge-in)."""

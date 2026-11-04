@@ -8,6 +8,8 @@ import queue
 import threading
 import time
 
+from typing import Callable, Optional
+
 from jarvis.config.settings import MAX_TOOL_ROUNDS
 from jarvis.core.turn import Turn
 from jarvis.core.player import Player
@@ -15,7 +17,7 @@ from jarvis.pipeline.llm import run_llm_with_tools
 from jarvis.pipeline.tts import tts_worker
 
 
-def run_turn(turn: Turn, messages: list, player: Player):
+def run_turn(turn: Turn, messages: list, player: Player, speak_fn: Optional[Callable[[str], None]] = None):
     """
     Execute a complete turn: LLM + tools + TTS + playback.
 
@@ -33,7 +35,7 @@ def run_turn(turn: Turn, messages: list, player: Player):
     tts_thread.start()
 
     try:
-        run_llm_with_tools(turn, messages, tts_q, MAX_TOOL_ROUNDS)
+        run_llm_with_tools(turn, messages, tts_q, MAX_TOOL_ROUNDS, speak_fn=speak_fn)
     except Exception as e:
         if not turn.cancel.is_set():
             print("\nTurn error:", e)
