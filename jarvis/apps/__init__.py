@@ -82,6 +82,10 @@ class Components:
         tts_pending.set()
         tts_thread.join(timeout=60)
 
+        # Record the spoken text in conversation history so the assistant
+        # doesn't "forget" what it just said.
+        jarvis.session.history.append({"role": "assistant", "content": text})
+
     @staticmethod
     def _tts_worker(turn, tts_q, player, tts_pending):
         from jarvis.pipeline.tts import tts_worker

@@ -168,7 +168,7 @@ def run_python(code: str) -> str:
 
 
 @tool(
-    "Search the web using DuckDuckGo.",
+    "Search the web using AI-powered crawl (Crawl4AI).",
     {
         "query": {"type": "string", "description": "The search query."},
         "max_results": {"type": "integer", "description": "Maximum number of results to return (default 5)."},
@@ -176,76 +176,63 @@ def run_python(code: str) -> str:
     ["query"],
 )
 def web_search(query: str, max_results: int = 5) -> str:
-    """Search the web via DuckDuckGo HTML and return top results.
+    """Search the web via Crawl4AI (AI-powered browser automation).
 
-    Uses DuckDuckGo's public HTML endpoint (no API key required).
+    Uses crawl4ai to fetch and extract search results. Requires:
+        pip install crawl4ai
+        crawl4ai-setup  # install browser binaries
 
     Args:
         query: The search query.
         max_results: Maximum number of results to return.
 
     Returns:
-        Formatted string with result titles, URLs, and snippets.
+        Formatted string with result titles and URLs.
     """
-    import urllib.request
-    import urllib.parse
-    import re
-    import html as html_module
+    try:
+        from crawl4ai import AsyncWebCrawler
+        import asyncio
+    except ImportError:
+        return (
+            "Error: crawl4ai not installed. Run: pip install crawl4ai\n"
+            "Then run: crawl4ai-setup (to install browser binaries)"
+        )
 
-    encoded = urllib.parse.quote(query)
-    url = f"https://duckduckgo.com/html/?q={encoded}"
+    search_url = "https://html.duckduckgo.com/html/?q=" + __import__("urllib.parse").quote(query)
 
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0 Safari/537.36"
+    async def _fetch():
+        async with AsyncWebCrawler(verbose=False) as crawler:
+            return await crawler.arun(
+                url=search_url,
+                word_count_threshold=10,
             )
-        },
-    )
 
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            html = resp.read().decode("utf-8", errors="replace")
+        result = asyncio.run(_fetch())
     except Exception as exc:  # pragma: no cover - network
         return f"Error: web search failed: {exc}"
 
+    markdown = getattr(result, "markdown", "") or ""
+    if not markdown.strip():
+        return "No results found."
+
+    import re
+    from urllib.parse import urlparse, parse_qs
+
+    links = re.findall(r"\[([^\]]+)\]\(([^)]+)\)", markdown)
+
     results = []
-    link_re = re.compile(
-        r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
-        re.IGNORECASE | re.DOTALL,
-    )
-    snippet_re = re.compile(
-        r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>|<span[^>]*class="result__snippet"[^>]*>(.*?)</span>',
-        re.IGNORECASE | re.DOTALL,
-    )
-
-    links = link_re.findall(html)
-    snippets = snippet_re.findall(html)
-
-    for i, (href, title) in enumerate(links[:max_results]):
-        clean_title = re.sub(r"<[^>]+>", "", title).strip()
-        clean_title = html_module.unescape(clean_title)
-
-        actual_url = href
-        if href.startswith("//duckduckgo.com/l/?"):
-            parsed = urllib.parse.urlparse(href)
-            qs = urllib.parse.parse_qs(parsed.query)
+    for title, url in links[:max_results]:
+        title = title.strip()
+        url = url.strip()
+        if url.startswith("//duckduckgo.com/l/?"):
+            parsed = urlparse(url)
+            qs = parse_qs(parsed.query)
             if "uddg" in qs:
-                actual_url = qs["uddg"][0]
-
-        snippet = ""
-        if i < len(snippets):
-            s = snippets[i][0] or snippets[i][1]
-            s = re.sub(r"<[^>]+>", "", s).strip()
-            s = html_module.unescape(s)
-            snippet = s[:200]
-
-        results.append(f"{i+1}. {clean_title}\n   {actual_url}\n   {snippet}")
+                url = qs["uddg"][0]
+        results.append(f"{len(results)+1}. {title}\\n   {url}")
 
     if not results:
         return "No results found."
 
-    return "\n\n".join(results)
+    return "\\n\\n".join(results)

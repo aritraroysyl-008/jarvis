@@ -64,15 +64,21 @@ class Player:
         Queue audio for playback.
 
         Args:
-            turn: The Turn this audio belongs to (for cancellation tracking)
-            text: Sentence text (for echo detection)
-            data: PCM16 audio bytes
-            last: True if this is the final chunk for the sentence
+            turn: The Turn this audio belongs to (for cancellation tracking).
+            text: Sentence text (for echo detection).
+            data: PCM16 audio bytes.
+            last: True if this is the final chunk for the sentence.
 
         Returns:
             False if turn was cancelled, True if queued.
         """
         with self.lock:
+            if turn is None:
+                # Components.play() passes None for raw audio playback;
+                # accept it without touching turn state.
+                self.q.append([None, text, data, last])
+                self.buffered += len(data)
+                return True
             if turn.cancel.is_set():
                 print(f"[PLAYER DEBUG] Push rejected: turn cancelled")
                 return False
@@ -104,6 +110,8 @@ class Player:
     def pending(self, turn) -> bool:
         """Check if a turn still has audio queued or playing."""
         with self.lock:
+            if turn is None:
+                return False
             return any(item[0] is turn for item in self.q)
 
     def _callback(self, outdata, frames, time_info, status):

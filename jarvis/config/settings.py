@@ -5,7 +5,18 @@ Centralized configuration for all modules.
 Modify these values to customize behavior without touching code.
 """
 
-import torch
+# Torch is imported lazily on first access to avoid a slow / hard-failing
+# module-level import for consumers that don't need it.
+_torch = None
+
+
+def _get_torch():
+    global _torch
+    if _torch is None:
+        import torch
+        _torch = torch
+    return _torch
+
 
 # NETWORK / SERVICE ENDPOINTS
 
@@ -78,18 +89,22 @@ HALLUCINATIONS = {
     "you", "thank you", "thanks for watching", "bye", "uh", "um", "hmm"
 }
 
-# DEVICE DETECTION
+# DEVICE DETECTION (lazy - torch only loads when first accessed)
 
-torch.set_num_threads(1)
+def _init_device():
+    torch = _get_torch()
+    torch.set_num_threads(1)
 
-if hasattr(torch, "xpu") and torch.xpu.is_available():
-    DEVICE = torch.device("xpu")
-elif torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-else:
-    DEVICE = torch.device("cpu")
+    if hasattr(torch, "xpu") and torch.xpu.is_available():
+        device = torch.device("xpu")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
 
-DEVICE_STR = str(DEVICE)
-USE_FP16 = DEVICE_STR == "cuda"
+    return str(device), device == torch.device("cuda")
+
+
+DEVICE_STR, USE_FP16 = _init_device()
 
 

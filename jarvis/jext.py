@@ -104,7 +104,11 @@ def _infer_type(param_name: str, desc: str) -> str:
         return "integer"
     if any(k in d for k in ("price", "temp", "temperature", "amount", "rating", "score")):
         return "number"
-    if any(k in d for k in ("is ", "enabled", "active", " on ", "valid", "correct")):
+    # Boolean: only match standalone "on" / "is " / "enabled" etc., not substrings like "lon"
+    words = d.split()
+    if any(w in ("on", "off", "true", "false", "yes", "no") for w in words):
+        return "boolean"
+    if any(k in d for k in ("is ", "enabled", "active", "valid", "correct")):
         return "boolean"
     return "string"
 

@@ -21,7 +21,7 @@ def test_list_tools_returns_builtin_tools():
 
 def test_get_tool_schemas_has_correct_structure():
     schemas = get_tool_schemas()
-    assert len(schemas) == 2
+    assert len(schemas) >= 6
 
     for schema in schemas:
         assert schema["type"] == "function"
@@ -71,8 +71,8 @@ def test_run_python_executes_code():
 
 
 def test_run_python_captures_stderr():
-    result = execute_tool("run_python", '{"code": "raise ValueError(\"boom\")"}')
-    assert "ValueError" in result or "boom" in result or "Error" in result
+    result = execute_tool("run_python", '{"code": "1/0"}')
+    assert "ZeroDivisionError" in result or "Error" in result
 
 
 def test_set_reminder_stores_and_lists():
@@ -264,6 +264,168 @@ def test_transcribe_empty_audio():
     audio = np.zeros(100, dtype=np.int16)
     result = transcribe(audio)
     assert result == ""
+
+
+# JEXT PARSING TESTS
+
+def test_parse_jext_basic_tool():
+    from jarvis.jext import parse_jext
+    text = """Tool: get_weather
+
+    Description:
+    Gets current weather information for a city.
+
+    Parameters:
+    city: Name of the city.
+    unit: Temperature unit, Celsius or Fahrenheit."""
+    schema = parse_jext(text)
+    assert schema["name"] == "get_weather"
+    assert "Gets current weather" in schema["description"]
+    assert "city" in schema["parameters"]["properties"]
+    assert "unit" in schema["parameters"]["properties"]
+    assert schema["parameters"]["additionalProperties"] is False
+    assert schema["parameters"]["strict"] is True
+
+
+def test_parse_jext_http_endpoint():
+    from jarvis.jext import parse_jext
+    text = """Tool: post_message
+
+    Description:
+    Send a message to a webhook.
+
+    Endpoint:
+    POST https://hooks.example.com/messages
+
+    Headers:
+    Content-Type: application/json
+
+    Body:
+    {"text": "{text}", "channel": "{channel}"}
+
+    Parameters:
+    text: The message text to send.
+    channel: The channel to post to."""
+    schema = parse_jext(text)
+    assert schema["name"] == "post_message"
+    assert schema["endpoint"]["method"] == "POST"
+    assert schema["endpoint"]["url"] == "https://hooks.example.com/messages"
+    assert schema["headers"]["Content-Type"] == "application/json"
+    assert '"text"' in schema["body"]
+
+
+def test_parse_jext_interval_trigger():
+    from jarvis.jext import parse_jext
+    text = """Tool: heartbeat_post
+
+    Description:
+    POST a heartbeat every 30 seconds.
+
+    Endpoint:
+    POST https://hooks.example.com/heartbeat
+
+    Parameters:
+    # none needed
+
+    Trigger:
+    every 30 seconds"""
+    schema = parse_jext(text)
+    assert schema["trigger"]["type"] == "interval"
+    assert schema["trigger"]["every"] == 30
+    assert schema["trigger"]["unit"] == "second"
+
+
+def test_parse_jext_keyword_trigger():
+    from jarvis.jext import parse_jext
+    text = """Tool: keyword_alert
+
+    Description:
+    Respond when keyword spoken.
+
+    Parameters:
+    # none
+
+    Trigger:
+    on keyword alert"""
+    schema = parse_jext(text)
+    assert schema["trigger"]["type"] == "keyword"
+    assert schema["trigger"]["keyword"] == "alert"
+
+
+def test_infer_type_not_boolean_for_lon():
+    from jarvis.jext import _infer_type
+    # "lon" should NOT be inferred as boolean (it contains "on" as substring)
+    assert _infer_type("lon", "Longitude of the location.") == "string"
+    # But standalone "on" word should be boolean
+    assert _infer_type("enabled", "Is it on?") == "boolean"
+
+
+# TRIGGER MANAGER TESTS
+
+def test_trigger_manager_keyword():
+    from jarvis.triggers import TriggerManager
+    results = []
+    def handler(**kwargs):
+        results.append(kwargs)
+        return "handled!"
+
+    tm = TriggerManager()
+    tm.register_trigger(
+        name="test_kw",
+        handler=handler,
+        trigger_type="keyword",
+        keyword="alert",
+    )
+    result = tm.check_keyword("this is an alert message")
+    assert result == "handled!"
+    assert len(results) == 1
+
+    # No match
+    result = tm.check_keyword("hello world")
+    assert result is None
+
+
+def test_trigger_manager_interval_due():
+    from jarvis.triggers import TriggerManager
+    import time
+    fired = []
+    def handler(**kwargs):
+        fired.append(True)
+        return "fired"
+
+    tm = TriggerManager()
+    tm.register_trigger(
+        name="fast_interval",
+        handler=handler,
+        trigger_type="interval",
+        every=1,
+        unit="second",
+    )
+    t = tm.triggers["fast_interval"]
+    # Manually set next_run to past to test is_due
+    t.next_run = time.time() - 1
+    assert t.is_due() is True
+    t.schedule_next()
+    assert t.is_due() is False  # just scheduled, not due yet
+
+
+def test_trigger_register_from_schema():
+    from jarvis.triggers import TriggerManager
+    from jarvis.jext import parse_jext_file
+
+    tm = TriggerManager()
+    def handler(**kwargs):
+        return "handled!"
+
+    schema = parse_jext_file("tools_example/keyword_alert.jext")
+    assert "trigger" in schema
+    assert schema["trigger"]["type"] == "keyword"
+    assert schema["trigger"]["keyword"] == "alert"
+
+    tm.register_from_schema(schema, handler)
+    assert "keyword_alert" in tm.triggers
+    result = tm.check_keyword("send an alert now")
+    assert result == "handled!"
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ Run:
 """
 
 from jarvis import JARVIS, tools, mcp
-from jarvis.apps import App, Components, register_app, WebApp
+from jarvis.apps import App, register_app, WebApp
 from jarvis.jext import load_jext_directory, register_jext_tools
 from jarvis.triggers import TriggerManager
 from jarvis.tools.registry import tool, list_tools
@@ -30,39 +30,6 @@ def calculate_tip(bill: float, tip_percent: float = 20.0) -> str:
     tip = bill * (tip_percent / 100.0)
     total = bill + tip
     return f"Tip: ${tip:.2f}  Total: ${total:.2f}"
-
-
-@tool(
-    "Write and execute Python code to perform calculations or other tasks.",
-    {"code": {"type": "string", "description": "Python source code to execute."}},
-    ["code"],
-)
-def run_python(code: str) -> str:
-    """Write Python code to a temp file and execute it, capturing stdout.
-
-    WARNING: This runs arbitrary Python code on the local machine.
-    """
-    import subprocess, sys, tempfile, os
-    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8")
-    try:
-        tmp.write(code)
-        tmp.flush(); tmp.close()
-        result = subprocess.run([sys.executable, tmp.name], capture_output=True, text=True, timeout=30)
-        output = result.stdout
-        if result.stderr:
-            output += "\nSTDERR:\n" + result.stderr
-        if result.returncode != 0:
-            output += f"\nExit code: {result.returncode}"
-        return output or "(no output)"
-    except subprocess.TimeoutExpired:
-        return "Error: Python script timed out after 30 seconds."
-    except Exception as exc:
-        return f"Error: {exc}"
-    finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
 
 
 # ---------------------------------------------------------------------------
