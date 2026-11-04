@@ -10,6 +10,7 @@ Run:
 from jarvis import JARVIS, tools, mcp
 from jarvis.apps import App, Components, register_app, WebApp
 from jarvis.jext import load_jext_directory, register_jext_tools
+from jarvis.triggers import TriggerManager
 from jarvis.tools.registry import tool, list_tools
 
 
@@ -136,8 +137,8 @@ if __name__ == "__main__":
 
     jarvis = JARVIS()
 
-    # Register .jext tools with the jarvis instance (wires up components)
-    register_jext_tools(jext_schemas, jarvis)
+    # Register .jext tools with the jarvis instance (wires up components + triggers)
+    register_jext_tools(jext_schemas, jarvis, trigger_manager=jarvis.trigger_manager)
 
     # Register the custom app with the jarvis instance so components are wired up
     register_app(GreetingApp(), jarvis)

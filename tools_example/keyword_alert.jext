@@ -1,0 +1,10 @@
+Tool: keyword_alert
+
+Description:
+Respond when the keyword 'alert' is spoken.
+
+Parameters:
+# No parameters needed - fired by keyword trigger
+
+Trigger:
+on keyword alert

@@ -25,6 +25,7 @@ from jarvis.jext import (
     register_jext_tools,
     register_jext_directory,
 )
+from jarvis.triggers import TriggerManager
 from jarvis.tools.registry import get_tool_schemas, tool, execute_tool, list_tools, TOOLS
 
 # MCP server endpoint configuration
@@ -44,6 +45,7 @@ __all__ = [
     "JARVIS",
     "App",
     "Components",
+    "TriggerManager",
     "register_app",
     "get_app",
     "list_apps",

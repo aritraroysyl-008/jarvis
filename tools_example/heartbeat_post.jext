@@ -1,0 +1,16 @@
+Tool: heartbeat_post
+
+Description:
+POST a heartbeat to a webhook every 30 seconds.
+
+Endpoint:
+POST https://hooks.example.com/heartbeat
+
+Headers:
+Content-Type: application/json
+
+Body:
+{"status": "alive", "service": "jarvis"}
+
+Trigger:
+every 30 seconds

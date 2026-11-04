@@ -184,6 +184,51 @@ def _parse_body(text: str) -> Optional[str]:
     return match.group(1).strip() or None
 
 
+def _parse_trigger(text: str) -> Optional[Dict[str, Any]]:
+    """Parse an optional ``Trigger:`` section.
+
+    Supported formats:
+
+        Trigger: every N seconds
+        Trigger: every N minutes
+        Trigger: every N hours
+
+        Trigger: cron <cron expression>
+
+        Trigger: on keyword <word>
+
+    Returns a dict with ``type`` (interval|cron|keyword) and the relevant
+    value, or None when no Trigger section is present.
+    """
+    match = re.search(
+        r"^\s*Trigger:\s*\n(.*?)(?=\n\s*\n|\Z)",
+        text,
+        re.MULTILINE | re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+    raw = match.group(1).strip()
+
+    # every N seconds/minutes/hours
+    m = re.match(r"every\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours)", raw, re.IGNORECASE)
+    if m:
+        n = int(m.group(1))
+        unit = m.group(2).lower().rstrip("s")
+        return {"type": "interval", "every": n, "unit": unit}
+
+    # cron expression
+    m = re.match(r"cron\s+(.+)", raw, re.IGNORECASE)
+    if m:
+        return {"type": "cron", "expression": m.group(1).strip()}
+
+    # keyword trigger
+    m = re.match(r"on keyword\s+(.+)", raw, re.IGNORECASE)
+    if m:
+        return {"type": "keyword", "keyword": m.group(1).strip().lower()}
+
+    return None
+
+
 def parse_jext(text: str) -> Dict[str, Any]:
     """Parse a .jext file's text content into a tool schema dict.
 
@@ -219,10 +264,13 @@ def parse_jext(text: str) -> Dict[str, Any]:
     # --- Body (optional) ---
     body = _parse_body(text)
 
+    # --- Trigger (optional) ---
+    trigger = _parse_trigger(text)
+
     # --- Parameters ---
     params_section = ""
     params_match = re.search(
-        r"^\s*Parameters:\s*\n(.*?)\Z",
+        r"^\s*Parameters:\s*\n(.*?)(?=\n\s*\n|\n\s*(?:Endpoint|Parameters|Headers|Body|Trigger):|\Z)",
         text,
         re.MULTILINE | re.IGNORECASE | re.DOTALL,
     )
@@ -276,6 +324,8 @@ def parse_jext(text: str) -> Dict[str, Any]:
         schema["headers"] = headers
     if body:
         schema["body"] = body
+    if trigger:
+        schema["trigger"] = trigger
 
     return schema
 
@@ -398,6 +448,7 @@ def _make_http_handler(schema: Dict[str, Any]) -> Callable[..., str]:
 def register_jext_tools(
     schemas: List[Dict[str, Any]],
     jarvis_or_registry: Any,
+    trigger_manager: Any = None,
 ) -> List[str]:
     """Register .jext tool schemas with a JARVIS instance or tool registry.
 
@@ -406,6 +457,8 @@ def register_jext_tools(
         jarvis_or_registry: A JARVIS instance (uses jarvis.tools.registry) or
             anything exposing .registry with register/execute_tool, or the
             registry module itself.
+        trigger_manager: Optional TriggerManager to auto-register triggers
+            declared in .jext files.
 
     Returns:
         List of registered tool names.
@@ -457,6 +510,10 @@ def register_jext_tools(
             },
         }
         registered.append(name)
+
+        # Auto-register trigger if present and a trigger manager is given
+        if trigger_manager is not None and "trigger" in schema:
+            trigger_manager.register_from_schema(schema, handler)
 
     return registered
 

@@ -22,6 +22,7 @@ from jarvis.config.settings import (
 )
 from jarvis.core import Turn, Player, EchoCanceller, Session
 from jarvis.pipeline import run_turn
+from jarvis.triggers import TriggerManager
 
 
 class JARVIS:
@@ -56,6 +57,7 @@ class JARVIS:
         self.stop_event = threading.Event()
         self.utterance_queue = queue.Queue()
         self.running = False
+        self.trigger_manager = TriggerManager()
 
     # Lifecycle
 
@@ -101,6 +103,7 @@ class JARVIS:
         self.vad_thread = threading.Thread(target=vad_worker.run, daemon=True)
 
         self.running = True
+        self.trigger_manager.start()
         print("Jarvis")
         print("Listening (full duplex). Talk any time. Ctrl+C to quit.\n")
 
@@ -116,6 +119,10 @@ class JARVIS:
                         continue
 
                     text = transcribe(audio)
+                    # Check keyword triggers (auto-fire .jext triggers)
+                    trigger_result = self.trigger_manager.check_keyword(text)
+                    if trigger_result:
+                        print(f"\n[Trigger auto-fired] {trigger_result}")
                     if not text or (barge and looks_like_echo(text, self.session.turn)):
                         if barge:
                             self.player.resume()
@@ -155,6 +162,7 @@ class JARVIS:
     def stop(self):
         """Stop the assistant and release resources."""
         self.running = False
+        self.trigger_manager.stop()
         self.stop_event.set()
         if self.session and self.session.turn:
             self.session.cancel_current()
