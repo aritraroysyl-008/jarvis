@@ -67,7 +67,13 @@ class VADWorker:
         def finish_utterance():
             nonlocal captured, recording, barge, speech_count, silence_count
             if captured:
-                self.utterance_queue.put((np.concatenate(captured), barge))
+                # If this was a barge-in (assistant was speaking), discard the
+                # captured audio so TTS output never reaches STT/Whisper.
+                # Barge-in already served its purpose: it paused the player.
+                if not barge:
+                    self.utterance_queue.put((np.concatenate(captured), barge))
+                else:
+                    print("[VAD] Barge-in audio discarded (not sent to STT)")
             captured = []
             recording = False
             barge = False
@@ -114,7 +120,11 @@ class VADWorker:
                     captured = list(pre_roll)
                     if active:
                         barge = True
-                        self.player.pause()  # Instant pause, Whisper decides if real
+                        self.player.pause()  # Instant pause on barge-in
+                        # Cancel the turn so TTS stops and assistant_active()
+                        # returns False — the user's next speech is recorded
+                        # normally instead of being discarded as echo.
+                        self.session.cancel_current(self.player)
             else:
                 captured.append(frame)
                 silence_count = 0 if prob >= VAD_THRESHOLD else silence_count + 1
