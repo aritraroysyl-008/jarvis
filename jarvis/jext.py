@@ -283,9 +283,16 @@ def register_jext_tools(
             continue
 
         # Build a callable that uses the default handler
-        @tool_decorator(description=description, properties=parameters.get("properties", {}), required=parameters.get("required", []))
         def _jext_handler(**kwargs):
             return _default_handler(name)(**kwargs)
+
+        _jext_handler.__name__ = name
+        _jext_handler.__qualname__ = name
+        tool_decorator(
+            description=description,
+            properties=parameters.get("properties", {}),
+            required=parameters.get("required", []),
+        )(_jext_handler)
 
         # Store the raw schema so the LLM sees the .jext definition
         TOOLS[name]["schema"] = {
