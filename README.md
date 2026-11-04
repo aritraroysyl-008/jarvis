@@ -110,10 +110,15 @@ Jarvis's `TTS_VOICE` in `jarvis/config/settings.py` should match your voice file
 
 ### 4. Register a custom voice (optional)
 
-Use `register_voice.bat` to convert an MP3 to 24 kHz mono WAV and upload it to the PocketTTS server for voice cloning:
+Use `register_voice.bat` (Windows) or `register_voice.sh` (Linux/macOS) to convert an MP3 to 24 kHz mono WAV and upload it to the PocketTTS server for voice cloning:
 
 ```bash
+# Windows
 register_voice.bat
+
+# Linux / macOS
+chmod +x register_voice.sh
+./register_voice.sh
 ```
 
 It will prompt for the MP3 path and a voice name, then POST to `http://127.0.0.1:8080/v1/audio/voices`. Set `TTS_VOICE` in `jarvis/config/settings.py` to the name you chose.
