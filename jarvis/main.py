@@ -13,6 +13,7 @@ Architecture:
 """
 
 import queue
+import re
 import threading
 
 from jarvis.config.settings import LLM_MODELS_URL, LLM_MODEL, USE_AEC, AEC_FILTER_LEN
@@ -27,6 +28,26 @@ from jarvis.audio import (
     looks_like_echo,
 )
 from jarvis.pipeline import run_turn
+
+
+# Stop words that immediately interrupt the assistant
+STOP_WORDS = [
+    r"\bstop\b",
+    r"\bshut\s+(up|the\s+fuck\s+up)\b",
+    r"\bbe\s+quiet\b",
+    r"\bquiet\b",
+    r"\bshush\b",
+    r"\bhalt\b",
+    r"\bcancel\b",
+    r"\babort\b",
+    r"\bshut\s+it\b",
+]
+STOP_REGEX = re.compile("|".join(STOP_WORDS), re.IGNORECASE)
+
+
+def is_stop_command(text: str) -> bool:
+    """Check if text contains a stop command."""
+    return bool(STOP_REGEX.search(text))
 
 
 def resolve_llm_model() -> str:
@@ -107,6 +128,18 @@ def main():
                     if barge:
                         player.resume()  # False alarm, resume playback
                     continue
+
+                # Check for stop commands - immediate interrupt
+                if is_stop_command(text):
+                    print(f"\n\nYou: {text}")
+                    print("[Stop command detected - interrupting]")
+                    session.cancel_current(player)
+                    player.resume()
+                    continue
+
+                # Ensure player is resumed after any barge-in (in case it wasn't echo)
+                if barge:
+                    player.resume()
 
                 print(f"\n\nYou: {text}")
                 session.start_turn(text, player)

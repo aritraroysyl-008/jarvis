@@ -28,7 +28,8 @@ def run_turn(turn: Turn, messages: list, player: Player):
         player: Player instance for audio output
     """
     tts_q = queue.Queue()
-    tts_thread = threading.Thread(target=tts_worker, args=(turn, tts_q, player), daemon=True)
+    tts_pending = threading.Event()  # Set when all TTS sentences are queued
+    tts_thread = threading.Thread(target=tts_worker, args=(turn, tts_q, player, tts_pending), daemon=True)
     tts_thread.start()
 
     try:
@@ -37,7 +38,9 @@ def run_turn(turn: Turn, messages: list, player: Player):
         if not turn.cancel.is_set():
             print("\nTurn error:", e)
     finally:
-        tts_q.put(None)
+        # Signal no more sentences will be queued
+        tts_pending.set()
+        # Wait for TTS worker to finish all sentences
         tts_thread.join()
         # Wait for playback to finish
         while not turn.cancel.is_set() and player.pending(turn):

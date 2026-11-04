@@ -80,7 +80,7 @@ class Session:
             if t is not None and t.finished.is_set() and not t.committed:
                 self.commit(t)
 
-    def cancel_current(self):
+    def cancel_current(self, player=None):
         """Cancel the current turn (barge-in)."""
         with self._lock:
             t = self.turn
@@ -88,6 +88,8 @@ class Session:
                 return
             if not t.finished.is_set():
                 t.abort()
+            if player is not None:
+                player.flush()
             self.commit(t)
 
     def start_turn(self, user_text: str, player) -> Turn:
@@ -101,7 +103,7 @@ class Session:
         Returns:
             The new Turn object
         """
-        self.cancel_current()
+        self.cancel_current(player)
 
         # Append or merge user message
         if self.history[-1]["role"] == "user":

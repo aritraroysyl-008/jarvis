@@ -74,7 +74,9 @@ class Player:
         """
         with self.lock:
             if turn.cancel.is_set():
+                print(f"[PLAYER DEBUG] Push rejected: turn cancelled")
                 return False
+            print(f"[PLAYER DEBUG] Push: {len(data)} bytes, last={last}, qsize={len(self.q)}, buffered={self.buffered}, started={self.started}, paused={self.paused}")
             self.q.append([turn, text, data, last])
             self.buffered += len(data)
         return True
@@ -113,11 +115,22 @@ class Player:
             # Safety: auto-resume if pause timeout exceeded
             if self.paused and time.monotonic() - self.paused_at > PAUSE_TIMEOUT:
                 self.paused = False
+                print(f"[PLAYER DEBUG] Auto-resume after pause timeout")
 
             # Jitter buffer: wait for enough audio before starting
             if not self.started and self.q:
-                if self.buffered >= PREBUFFER_BYTES or self.q[0][0].tts_done.is_set():
+                turn = self.q[0][0]
+                tts_done = getattr(turn, 'tts_done', None)
+                # Start if: buffer full, OR tts_done, OR first item is a complete sentence (last=True)
+                first_item_last = self.q[0][3] if self.q else False
+                if self.buffered >= PREBUFFER_BYTES or (tts_done is not None and tts_done.is_set()) or first_item_last:
                     self.started = True
+                    print(f"[PLAYER DEBUG] Started playback: buffered={self.buffered}, prebuffer={PREBUFFER_BYTES}, tts_done={tts_done.is_set() if tts_done else 'N/A'}, first_last={first_item_last}")
+
+            # Safety: force resume if paused but we have audio queued (barge-in false alarm)
+            if self.paused and self.q and self.started:
+                print(f"[PLAYER DEBUG] Force resume: was paused but audio queued")
+                self.paused = False
 
             # Pull audio from queue
             if self.started and not self.paused:
@@ -141,6 +154,9 @@ class Player:
 
                 if not self.q:
                     self.started = False  # Underrun: rebuffer before resuming
+                    print(f"[PLAYER DEBUG] Underrun, stopping playback")
+            elif self.started and self.paused:
+                print(f"[PLAYER DEBUG] Paused, not pulling audio")
 
         # Pad with silence if needed
         if len(buf) < need:

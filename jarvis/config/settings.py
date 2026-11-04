@@ -19,7 +19,7 @@ TTS_VOICE = "alba"
 LLM_BASE_URL = "http://127.0.0.1:1337/v1"
 LLM_CHAT_URL = f"{LLM_BASE_URL}/chat/completions"
 LLM_MODELS_URL = f"{LLM_BASE_URL}/models"
-LLM_MODEL = None  # fallback if /models lookup fails
+LLM_MODEL = "no_func.gguf"  # fallback if /models lookup fails
 
 
 TTS_SAMPLE_RATE = 24000
@@ -60,7 +60,7 @@ CHUNK_SENTENCES = 5                   # Sentences per TTS chunk
 FIRST_CHUNK_SENTENCES = 5             # First chunk size (lower = starts sooner)
 
 # Jitter buffer: playback starts once this much audio is queued (or TTS finished)
-PREBUFFER_SECONDS = 0.5
+PREBUFFER_SECONDS = 0.15
 PREBUFFER_BYTES = int(TTS_SAMPLE_RATE * 2 * PREBUFFER_SECONDS)
 
 PAUSE_TIMEOUT = 45.0                  # Safety: auto-resume if pause never resolved
@@ -80,7 +80,8 @@ SYSTEM_PROMPT = (
     "You are a helpful voice assistant. "
     "Keep replies short, conversational, and easy to speak aloud. "
     "Do not use markdown, bullet points, code blocks, or emojis. "
-    "When a tool would give a better answer, call it, then reply in one or two spoken sentences."
+    "When a tool would give a better answer, call it, then reply in one or two spoken sentences. "
+    "Use full curse words naturally (fucking, shit, damn, etc.) — never censor with asterisks like f*cking or sh*t."
 )
 
 # ============================================================
@@ -106,6 +107,5 @@ else:
 
 DEVICE_STR = str(DEVICE)
 USE_FP16 = DEVICE_STR == "cuda"
-
 
 

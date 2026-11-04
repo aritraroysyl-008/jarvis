@@ -24,10 +24,96 @@ from jarvis.core.turn import Turn
 # Sentence splitting regex
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 
+# Emoji regex pattern (covers most common emoji ranges)
+EMOJI_RE = re.compile(
+    r"["
+    r"\U0001F600-\U0001F64F"  # emoticons
+    r"\U0001F300-\U0001F5FF"  # symbols & pictographs
+    r"\U0001F680-\U0001F6FF"  # transport & map symbols
+    r"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+    r"\U00002700-\U000027BF"  # dingbats
+    r"\U00002600-\U000026FF"  # misc symbols
+    r"\U0001F900-\U0001F9FF"  # supplemental symbols
+    r"\U0001FA70-\U0001FAFF"  # symbols & pictographs extended
+    r"]+",
+    flags=re.UNICODE,
+)
+
+# Censored word patterns -> full word replacements
+# Specific patterns first (most specific), general fallback last
+CENSORED_PATTERNS = [
+    # fucking, f*cking, f**king, etc.
+    (re.compile(r"\bf\*+cking\b", re.IGNORECASE), "fucking"),
+    # f*ck, f**k, f***k, f*cker, f**ker, f*cked, f*ck
+    (re.compile(r"\bf\*+ck(ed|er|ing)?\b", re.IGNORECASE), lambda m: "fuck" + (m.group(1) or "")),
+    # sh*t, sh*t, sh**t, sh*tty, sh*t
+    (re.compile(r"\bsh\*+t(ty)?\b", re.IGNORECASE), lambda m: "shit" + (m.group(1) or "")),
+    # sh*t, sh**t (without h in pattern)
+    (re.compile(r"\bs\*+t\b", re.IGNORECASE), "shit"),
+    # d*mn, d**n, d*mn, damned
+    (re.compile(r"\bd\*+mn(ed)?\b", re.IGNORECASE), lambda m: "damn" + (m.group(1) or "")),
+    # b*tch, b**ch, b*tches
+    (re.compile(r"\bb\*+tch(es)?\b", re.IGNORECASE), lambda m: "bitch" + (m.group(1) or "")),
+    # a*s, a**s, a**hole, a*shole
+    (re.compile(r"\ba\*+shole\b", re.IGNORECASE), "asshole"),
+    (re.compile(r"\ba\*+s\b", re.IGNORECASE), "ass"),
+    # c*nt, c**t
+    (re.compile(r"\bc\*+nt\b", re.IGNORECASE), "cunt"),
+    # p*ss, p**s, p*ssy, p*ssed
+    (re.compile(r"\bp\*+ss(ed|y)?\b", re.IGNORECASE), lambda m: "piss" + (m.group(1) or "")),
+    # c*ck, c**k, c*cker, c*cked
+    (re.compile(r"\bc\*+ck(ed|er)?\b", re.IGNORECASE), lambda m: "cock" + (m.group(1) or "")),
+    # tw*t, tw**t
+    (re.compile(r"\btw\*+t\b", re.IGNORECASE), "twat"),
+    # motherf*cker, motherf**ker
+    (re.compile(r"\bmotherf\*+ck(er)?\b", re.IGNORECASE), lambda m: "motherfuck" + (m.group(1) or "")),
+    # General fallback: word with asterisks (f*k -> fuck, s*t -> shit, d*n -> damn, etc.)
+    (re.compile(r"\b([a-z])\*+([a-z])\w*\b", re.IGNORECASE), lambda m: _expand_general(m)),
+]
+
+
+def _expand_general(match):
+    """General expansion for short censored words."""
+    word = match.group(0).lower()
+    first, last = match.group(1).lower(), match.group(2).lower()
+    # Common short patterns
+    if len(word) <= 5:
+        mapping = {
+            ('f', 'k'): 'fuck',
+            ('s', 't'): 'shit',
+            ('d', 'n'): 'damn',
+            ('b', 'h'): 'bitch',
+            ('a', 's'): 'ass',
+            ('c', 't'): 'cunt',
+            ('p', 's'): 'piss',
+            ('c', 'k'): 'cock',
+            ('t', 't'): 'twat',
+        }
+        return mapping.get((first, last), word)
+    return match.group(0)
+
+
+def expand_censored(text: str) -> str:
+    """Expand censored words (f*cking, sh*t, etc.) to full words."""
+    for pattern, replacement in CENSORED_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
 
 def clean_for_tts(text: str) -> str:
-    """Remove markdown/formatting for cleaner TTS."""
-    text = re.sub(r"[*_#`~>|]", " ", text)
+    """Remove markdown/formatting, newlines, emojis, and expand censored words for cleaner TTS."""
+    # Replace newlines with spaces
+    text = text.replace("\n", " ").replace("\r", " ")
+    # Remove emojis
+    text = EMOJI_RE.sub("", text)
+    # Expand censored words BEFORE removing asterisks
+    text = expand_censored(text)
+    # Remove markdown asterisks (**, *, ***) but preserve expanded words
+    text = re.sub(r"\*\*+", " ", text)  # **, ***, etc.
+    text = re.sub(r"\*(?=\w)|(?<=\w)\*", " ", text)  # * at word boundaries
+    # Remove remaining markdown/formatting chars
+    text = re.sub(r"[_#`~>|]", " ", text)
+    # Normalize whitespace
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -53,6 +139,7 @@ def queue_sentence(turn: Turn, tts_q: queue.Queue, sentence: str):
     sentence = clean_for_tts(sentence)
     if sentence and re.search(r"\w", sentence) and not turn.cancel.is_set():
         turn.said.append(sentence)
+        print(f"[TTS queue] {sentence[:60]}...", flush=True)
         tts_q.put(sentence)
 
 
@@ -73,6 +160,7 @@ def stream_llm(turn: Turn, messages: list, tts_q: queue.Queue) -> tuple[str, lis
         "messages": messages,
         "stream": True,
         "temperature": 0.7,
+        "max_tokens": 800,
     }
 
     schemas = get_tool_schemas()
