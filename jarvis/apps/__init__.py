@@ -26,6 +26,173 @@ if TYPE_CHECKING:
     from jarvis.app import JARVIS  # noqa: F401
 
 # ---------------------------------------------------------------------------
+# Components - callable building blocks for custom apps
+# ---------------------------------------------------------------------------
+
+class Components:
+    """Callable Jarvis components for use in custom apps.
+
+    Each attribute is a function you can call directly:
+
+        app.components.speak("Hello")
+        text = app.components.transcribe(audio_array)
+        reply = app.components.llm("What is the weather?")
+        result = app.components.tools("get_weather", '{"city": "NYC"}')
+        app.components.play(audio_bytes)
+
+    Attributes:
+        jarvis: Parent JARVIS instance.
+    """
+
+    def __init__(self, jarvis: "JARVIS"):
+        self.jarvis = jarvis
+
+    # ------------------------------------------------------------------
+    # TTS - text to speech
+    # ------------------------------------------------------------------
+
+    def speak(self, text: str, voice: Optional[str] = None) -> None:
+        """Speak text through the TTS pipeline.
+
+        Args:
+            text: Text to speak.
+            voice: Optional voice name override.
+        """
+        jarvis = self.jarvis
+        if jarvis.player is None:
+            raise RuntimeError("Jarvis player not initialized. Call jarvis.run() first.")
+
+        import queue
+        import threading
+        from jarvis.pipeline.tts import speak as _speak
+        from jarvis.core.turn import Turn
+
+        turn = Turn()
+        tts_q: "queue.Queue[str]" = queue.Queue()
+        tts_pending = threading.Event()
+
+        tts_thread = threading.Thread(
+            target=self._tts_worker,
+            args=(turn, tts_q, jarvis.player, tts_pending),
+            daemon=True,
+        )
+        tts_thread.start()
+
+        tts_q.put(text)
+        tts_pending.set()
+        tts_thread.join(timeout=60)
+
+    @staticmethod
+    def _tts_worker(turn, tts_q, player, tts_pending):
+        from jarvis.pipeline.tts import tts_worker
+        tts_worker(turn, tts_q, player, tts_pending)
+
+    # ------------------------------------------------------------------
+    # STT - speech to text
+    # ------------------------------------------------------------------
+
+    def transcribe(self, audio) -> str:
+        """Transcribe audio to text.
+
+        Args:
+            audio: numpy int16 array of audio samples.
+
+        Returns:
+            Transcribed text string.
+        """
+        from jarvis.audio.transcribe import transcribe as _transcribe
+        return _transcribe(audio)
+
+    # ------------------------------------------------------------------
+    # LLM - language model
+    # ------------------------------------------------------------------
+
+    def llm(self, text: str, messages: Optional[List[dict]] = None) -> str:
+        """Get a response from the LLM.
+
+        Args:
+            text: User text to send.
+            messages: Optional conversation history (list of role/content dicts).
+
+        Returns:
+            LLM response text.
+        """
+        from jarvis.pipeline.llm import stream_llm
+        from jarvis.core.turn import Turn
+
+        jarvis = self.jarvis
+        turn = Turn()
+
+        if messages is None:
+            messages = list(jarvis.session.history)
+        else:
+            messages = list(messages)
+
+        import queue
+        tts_q: "queue.Queue[str]" = queue.Queue()
+
+        full_text, _ = stream_llm(turn, messages, tts_q)
+        return full_text
+
+    # ------------------------------------------------------------------
+    # Tools - function calling
+    # ------------------------------------------------------------------
+
+    def tools(self, name: str, raw_args: str = "{}") -> str:
+        """Execute a registered tool by name.
+
+        Args:
+            name: Tool function name.
+            raw_args: JSON string of arguments.
+
+        Returns:
+            Tool result string.
+        """
+        from jarvis.tools.registry import execute_tool
+        return execute_tool(name, raw_args)
+
+    def list_tools(self) -> List[str]:
+        """Return names of all registered tools."""
+        from jarvis.tools.registry import list_tools
+        return list_tools()
+
+    def tool_schemas(self) -> List[dict]:
+        """Return JSON schemas for all registered tools."""
+        from jarvis.tools.registry import get_tool_schemas
+        return get_tool_schemas()
+
+    # ------------------------------------------------------------------
+    # Audio playback
+    # ------------------------------------------------------------------
+
+    def play(self, audio_bytes: bytes) -> None:
+        """Push raw PCM16 audio bytes to the output player.
+
+        Args:
+            audio_bytes: PCM16-encoded audio bytes.
+        """
+        jarvis = self.jarvis
+        if jarvis.player is None:
+            raise RuntimeError("Jarvis player not initialized.")
+        jarvis.player.push(None, "", audio_bytes, True)
+
+    # ------------------------------------------------------------------
+    # Session / conversation
+    # ------------------------------------------------------------------
+
+    def history(self) -> List[dict]:
+        """Return the current conversation history."""
+        return list(self.jarvis.session.history)
+
+    def clear_history(self) -> None:
+        """Clear conversation history (keeps system prompt)."""
+        from jarvis.config.settings import SYSTEM_PROMPT
+        self.jarvis.session.history = [
+            {"role": "system", "content": SYSTEM_PROMPT}
+        ]
+
+
+# ---------------------------------------------------------------------------
 # App base class
 # ---------------------------------------------------------------------------
 
@@ -44,6 +211,12 @@ class App:
 
     def __init__(self):
         self.jarvis = None
+        self.components: Optional[Components] = None
+
+    def _bind(self, jarvis: "JARVIS") -> None:
+        """Called internally by register_app to wire up Jarvis."""
+        self.jarvis = jarvis
+        self.components = Components(jarvis)
 
     def on_start(self):
         """Called when the app is activated."""
@@ -76,8 +249,14 @@ class App:
 _APPS: Dict[str, App] = {}
 
 
-def register_app(app: App) -> None:
-    """Register an app instance by its ``name`` attribute."""
+def register_app(app: App, jarvis: "JARVIS") -> None:
+    """Register an app instance by its ``name`` attribute, binding it to Jarvis.
+
+    Args:
+        app: App instance to register.
+        jarvis: Parent JARVIS instance (provides components).
+    """
+    app._bind(jarvis)
     _APPS[app.name] = app
 
 
@@ -201,6 +380,7 @@ class WebApp:
 
 __all__ = [
     "App",
+    "Components",
     "register_app",
     "get_app",
     "list_apps",

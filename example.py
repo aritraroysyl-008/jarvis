@@ -8,7 +8,7 @@ Run:
 """
 
 from jarvis import JARVIS, tools, mcp
-from jarvis.apps import App, register_app, WebApp
+from jarvis.apps import App, Components, register_app, WebApp
 from jarvis.tools.registry import tool, list_tools
 
 
@@ -41,20 +41,33 @@ def web_search(query: str) -> str:
 # ---------------------------------------------------------------------------
 
 class GreetingApp(App):
-    """Example custom app: responds to greetings with a friendly message."""
+    """Example custom app: responds to greetings with a friendly message.
+
+    Demonstrates using components (speak, llm, tools) inside on_text.
+    """
 
     name = "greeting"
 
     def on_text(self, text: str) -> str:
         lower = text.lower()
         if any(word in lower for word in ("hello", "hi", "hey")):
+            # Use components directly - speak and llm are callable
+            self.components.speak("Hello there! How can I help you today?")
             return "Hello there! How can I help you today?"
         if "bye" in lower or "goodbye" in lower:
             return "Goodbye! Have a great day."
-        return f"I heard you say: {text}"
+
+        # Example: call a tool through components
+        if "weather" in lower:
+            result = self.components.tools("get_weather", '{"city": "New York"}')
+            return f"Weather: {result}"
+
+        # Example: ask the LLM through components
+        reply = self.components.llm(text)
+        return reply
 
 
-register_app(GreetingApp())
+# register_app now needs the jarvis instance (called in __main__ below)
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +77,7 @@ register_app(GreetingApp())
 print("MCP endpoints:", mcp)
 print("Registered tools:", list_tools())
 print("Tool schemas count:", len(tools))
-print("Registered apps:", list(register_app.__globals__["_APPS"].keys()))
+print("Components: speak, transcribe, llm, tools, play, history, clear_history")
 
 
 # ---------------------------------------------------------------------------
@@ -82,14 +95,17 @@ print("Registered apps:", list(register_app.__globals__["_APPS"].keys()))
 if __name__ == "__main__":
     import sys
 
+    jarvis = JARVIS()
+
+    # Register the custom app with the jarvis instance so components are wired up
+    register_app(GreetingApp(), jarvis)
+
     if "--web" in sys.argv:
         try:
-            jarvis = JARVIS()
             web = WebApp(jarvis)
             print("Starting web app at http://127.0.0.1:8000")
             web.run(port=8000)
         except ImportError as exc:
             print(f"Web mode requires fastapi + uvicorn: {exc}")
     else:
-        jarvis = JARVIS()
         jarvis.run()
