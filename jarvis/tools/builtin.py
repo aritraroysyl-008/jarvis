@@ -12,9 +12,7 @@ from datetime import datetime
 from jarvis.tools.registry import tool
 
 
-# ============================================================
 # UTILITY: Safe arithmetic evaluation
-# ============================================================
 
 _BIN_OPS = {
     ast.Add: operator.add,
@@ -43,9 +41,7 @@ def _safe_eval(node):
     raise ValueError("unsupported expression")
 
 
-# ============================================================
 # BUILT-IN TOOLS
-# ============================================================
 
 @tool("Get the current local date and time.")
 def get_current_time() -> str:
@@ -63,10 +59,7 @@ def calculate(expression: str) -> str:
     return str(_safe_eval(ast.parse(expression, mode="eval")))
 
 
-# ============================================================
 # EXAMPLE: How to add custom tools
-# ============================================================
-#
 # @tool(
 #     "Search the web for information.",
 #     {"query": {"type": "string", "description": "Search query"}},

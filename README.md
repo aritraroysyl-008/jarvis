@@ -1,20 +1,20 @@
 # Jarvis
 
-**Jarvis** — a modular, full-duplex Python voice assistant with tool calling, barge-in interruption, echo cancellation, and streaming LLM + TTS.
+**Jarvis** - a modular, full-duplex Python voice assistant with tool calling, barge-in interruption, echo cancellation, and streaming LLM + TTS.
 
-Built as an installable Python package (`jarvis/`), it runs entirely on your machine and streams speech as the LLM generates it — no waiting for full sentences before audio starts.
+Built as an installable Python package (`jarvis/`), it runs entirely on your machine and streams speech as the LLM generates it - no waiting for full sentences before audio starts.
 
 ## Features
 
-- **Full-duplex audio** — listen and speak at the same time; no turn-taking pauses
-- **Barge-in / interruption** — talk over the assistant to cut it off instantly
-- **Tool calling (function calling)** — LLM can call registered tools and speak the results
-- **Streaming LLM + TTS** — audio starts playing while the LLM is still streaming tokens
-- **Echo cancellation** — optional SpeexDSP AEC so the mic doesn't hear its own output
-- **PocketTTS.cpp TTS server** — GGML-based, zero-shot voice-cloning TTS via OpenAI-compatible HTTP API ([ServeurpersoCom/pockettts.cpp](https://github.com/ServeurpersoCom/pockettts.cpp))
-- **Silero VAD** — voice activity detection for utterance segmentation
-- **Whisper transcription** — local speech-to-text
-- **Modular, extensible** — clean separation of config, core, pipeline, audio, and tools
+- **Full-duplex audio** - listen and speak at the same time; no turn-taking pauses
+- **Barge-in / interruption** - talk over the assistant to cut it off instantly
+- **Tool calling (function calling)** - LLM can call registered tools and speak the results
+- **Streaming LLM + TTS** - audio starts playing while the LLM is still streaming tokens
+- **Echo cancellation** - optional SpeexDSP AEC so the mic doesn't hear its own output
+- **PocketTTS.cpp TTS server** - GGML-based, zero-shot voice-cloning TTS via OpenAI-compatible HTTP API ([ServeurpersoCom/pockettts.cpp](https://github.com/ServeurpersoCom/pockettts.cpp))
+- **Silero VAD** - voice activity detection for utterance segmentation
+- **Whisper transcription** - local speech-to-text
+- **Modular, extensible** - clean separation of config, core, pipeline, audio, and tools
 
 ## Architecture
 
@@ -73,7 +73,7 @@ pip install -e .
 
 ### 3. Set up the TTS server (PocketTTS.cpp)
 
-Jarvis speaks through a PocketTTS.cpp `tts-server` at `http://127.0.0.1:8080/v1/audio/speech` — an OpenAI-compatible HTTP server with a voice directory and runtime voice registry.
+Jarvis speaks through a PocketTTS.cpp `tts-server` at `http://127.0.0.1:8080/v1/audio/speech` - an OpenAI-compatible HTTP server with a voice directory and runtime voice registry.
 
 Build and run PocketTTS.cpp ([source](https://github.com/ServeurpersoCom/pockettts.cpp)):
 
@@ -96,8 +96,8 @@ cd pockettts.cpp
 ```
 
 The server exposes:
-- `POST /v1/audio/speech` — OpenAI-compatible TTS (what Jarvis calls)
-- Runtime voice registry — register predefined or cloned voices at startup
+- `POST /v1/audio/speech` - OpenAI-compatible TTS (what Jarvis calls)
+- Runtime voice registry - register predefined or cloned voices at startup
 
 Jarvis's `TTS_VOICE` in `jarvis/config/settings.py` should match a registered voice name (default: `"alba"`).
 
@@ -138,7 +138,7 @@ AEC: enabled
 Listening (full duplex). Talk any time, Ctrl+C to quit.
 ```
 
-Speak anytime — Jarvis transcribes, streams the LLM response, and plays TTS audio as it arrives. Say "stop" to interrupt. `Ctrl+C` to quit.
+Speak anytime - Jarvis transcribes, streams the LLM response, and plays TTS audio as it arrives. Say "stop" to interrupt. `Ctrl+C` to quit.
 
 ## Configuration
 
@@ -154,7 +154,7 @@ All settings live in `jarvis/config/settings.py`:
 | `MIC_SAMPLE_RATE` | `16000` | Microphone sample rate (Hz) |
 | `USE_AEC` | `True` | Enable echo cancellation (`pip install speexdsp`) |
 | `WHISPER_MODEL` | `"tiny"` | Whisper STT model size |
-| `SYSTEM_PROMPT` | — | System prompt sent to the LLM |
+| `SYSTEM_PROMPT` | - | System prompt sent to the LLM |
 
 ## Install as a package
 
@@ -196,4 +196,4 @@ MIT
 
 ---
 
-TTS powered by [PocketTTS.cpp](https://github.com/ServeurpersoCom/pockettts.cpp) — GGML-based local AI TTS with voice cloning, CPU/CUDA/Metal/Vulkan support.
+TTS powered by [PocketTTS.cpp](https://github.com/ServeurpersoCom/pockettts.cpp) - GGML-based local AI TTS with voice cloning, CPU/CUDA/Metal/Vulkan support.

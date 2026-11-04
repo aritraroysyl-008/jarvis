@@ -11,9 +11,7 @@ from jarvis.config.settings import (
 )
 
 
-# ============================================================
 # TOOLS TESTS
-# ============================================================
 
 def test_list_tools_returns_builtin_tools():
     tools = list_tools()
@@ -122,9 +120,7 @@ def test_tool_schema_auto_generation():
     import jarvis.tools.builtin  # noqa: F401
 
 
-# ============================================================
 # CONFIG TESTS
-# ============================================================
 
 def test_settings_has_required_values():
     assert TTS_URL == "http://127.0.0.1:8080/v1/audio/speech"
@@ -137,9 +133,7 @@ def test_settings_has_required_values():
     assert SYSTEM_PROMPT.startswith("You are a helpful voice assistant")
 
 
-# ============================================================
 # CORE TESTS (require torch, skip if not available)
-# ============================================================
 
 try:
     import torch
@@ -195,9 +189,7 @@ def test_session_trim():
     assert len(session.history) <= 40  # MAX_HISTORY
 
 
-# ============================================================
 # PIPELINE TESTS (require torch, skip if not available)
-# ============================================================
 
 @pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not installed")
 def test_clean_for_tts():
@@ -235,9 +227,7 @@ def test_split_ready():
     assert rest.startswith("B")
 
 
-# ============================================================
 # AUDIO TESTS (require torch/whisper, skip if not available)
-# ============================================================
 
 try:
     import whisper

@@ -7,9 +7,7 @@ Modify these values to customize behavior without touching code.
 
 import torch
 
-# ============================================================
 # NETWORK / SERVICE ENDPOINTS
-# ============================================================
 
 # Text-to-Speech server (PocketTTS compatible)
 TTS_URL = "http://127.0.0.1:8080/v1/audio/speech"
@@ -28,9 +26,7 @@ MIC_SAMPLE_RATE = 16000
 OUTPUT_BLOCK_SIZE = 480               # 20 ms @ 24 kHz
 MIC_QUEUE_SIZE = 200
 
-# ============================================================
 # VAD / TURN TAKING
-# ============================================================
 
 VAD_FRAME_SIZE = 512                  # Silero needs exactly 512 samples @ 16 kHz
 VAD_THRESHOLD = 0.60                  # Speech threshold while assistant is silent
@@ -42,16 +38,12 @@ PRE_ROLL_FRAMES = 10                  # Frames to keep before speech starts
 MAX_UTTERANCE_FRAMES = 30 * MIC_SAMPLE_RATE // VAD_FRAME_SIZE
 MIN_UTTERANCE_SAMPLES = MIC_SAMPLE_RATE // 4  # 250 ms minimum
 
-# ============================================================
 # ECHO CANCELLATION (optional, needs `pip install speexdsp`)
-# ============================================================
 
 USE_AEC = True
 AEC_FILTER_LEN = 4096                 # ~256 ms tail
 
-# ============================================================
 # LLM SETTINGS
-# ============================================================
 
 MAX_TOOL_ROUNDS = 4
 MAX_HISTORY = 40
@@ -65,36 +57,28 @@ PREBUFFER_BYTES = int(TTS_SAMPLE_RATE * 2 * PREBUFFER_SECONDS)
 
 PAUSE_TIMEOUT = 45.0                  # Safety: auto-resume if pause never resolved
 
-# ============================================================
 # WHISPER SETTINGS
-# ============================================================
 
 WHISPER_MODEL = "tiny"
 WHISPER_LANGUAGE = "en"               # None = auto-detect (tiny is weak at that)
 
-# ============================================================
 # SYSTEM PROMPT
-# ============================================================
 
 SYSTEM_PROMPT = (
     "You are a helpful voice assistant. "
     "Keep replies short, conversational, and easy to speak aloud. "
     "Do not use markdown, bullet points, code blocks, or emojis. "
     "When a tool would give a better answer, call it, then reply in one or two spoken sentences. "
-    "Use full curse words naturally (fucking, shit, damn, etc.) — never censor with asterisks like f*cking or sh*t."
+    "Use full curse words naturally (fucking, shit, damn, etc.) - never censor with asterisks like f*cking or sh*t."
 )
 
-# ============================================================
 # HALLUCINATION FILTER
-# ============================================================
 
 HALLUCINATIONS = {
     "you", "thank you", "thanks for watching", "bye", "uh", "um", "hmm"
 }
 
-# ============================================================
 # DEVICE DETECTION
-# ============================================================
 
 torch.set_num_threads(1)
 

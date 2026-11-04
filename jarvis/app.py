@@ -57,9 +57,7 @@ class JARVIS:
         self.utterance_queue = queue.Queue()
         self.running = False
 
-    # ------------------------------------------------------------------
     # Lifecycle
-    # ------------------------------------------------------------------
 
     def start(self):
         """Initialize components and run the main assistant loop."""
@@ -163,9 +161,7 @@ class JARVIS:
         if self.vad_thread and self.vad_thread.is_alive():
             self.vad_thread.join(timeout=2)
 
-    # ------------------------------------------------------------------
     # Helpers
-    # ------------------------------------------------------------------
 
     def is_stop_command(self, text: str) -> bool:
         """Return True if *text* contains a stop/interrupt command."""
